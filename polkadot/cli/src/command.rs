@@ -26,7 +26,7 @@ use service::{
 };
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use sp_keyring::Sr25519Keyring;
-use std::net::ToSocketAddrs;
+use std::{net::ToSocketAddrs, sync::atomic::Ordering};
 
 pub use crate::{error::Error, service::BlockId};
 #[cfg(feature = "hostperfcheck")]
@@ -248,7 +248,7 @@ where
 	// Until we implement https://github.com/paritytech/substrate/issues/14756
 	// - disallow warp sync for validators,
 	// - disable BEEFY when warp sync for non-validators.
-	if enable_beefy && runner.config().network.sync_mode.is_warp() {
+	if enable_beefy && runner.config().network.sync_mode.load(Ordering::Relaxed).is_warp() {
 		if runner.config().role.is_authority() {
 			return Err(Error::Other(
 				"Warp sync not supported for validator nodes running BEEFY.".into(),
