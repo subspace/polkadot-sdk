@@ -189,6 +189,11 @@ pub struct SyncingEngine<B: BlockT, Client> {
 	/// Are we actively catching up with the chain?
 	is_major_syncing: Arc<AtomicBool>,
 
+	/// Parameter that allows node to forcefully assume it is synced, needed for network
+	/// bootstrapping only, as long as two synced nodes remain on the network at any time, this
+	/// doesn't need to be used.
+	force_synced: bool,
+
 	/// Network service.
 	network_service: service::network::NetworkServiceHandle,
 
@@ -285,6 +290,7 @@ where
 		network_service: service::network::NetworkServiceHandle,
 		import_queue: Box<dyn ImportQueueService<B>>,
 		peer_store_handle: Arc<dyn PeerStoreProvider>,
+        force_synced: bool,
 	) -> Result<(Self, SyncingService<B>, N::NotificationProtocolConfig), ClientError>
 	where
 		N: NetworkBackend<B, <B as BlockT>::Hash>,
@@ -345,7 +351,8 @@ where
 				&net_config.network_config.default_peers_set,
 				network_metrics,
 				Arc::clone(&peer_store_handle),
-			);
+                force_synced,
+            );
 
 		let block_announce_protocol_name = block_announce_config.protocol_name().clone();
 		let (tx, service_rx) = tracing_unbounded("mpsc_chain_sync", 100_000);
@@ -378,6 +385,7 @@ where
 				),
 				num_connected: num_connected.clone(),
 				is_major_syncing: is_major_syncing.clone(),
+				force_synced: net_config.network_config.force_synced,
 				service_rx,
 				genesis_hash: info.genesis_hash,
 				important_peers,
@@ -411,15 +419,26 @@ where
 		))
 	}
 
-	fn update_peer_info(
+    fn is_synced(&self) -> bool {
+        if self.force_synced {
+            return true
+        }
+
+        !self.is_major_syncing.load(Ordering::Relaxed) &&
+            self.peers.iter().any(|(_peer_id, peer)| peer.info.is_synced)
+    }
+
+    fn update_peer_info(
 		&mut self,
 		peer_id: &PeerId,
 		best_hash: B::Hash,
 		best_number: NumberFor<B>,
+		is_synced: bool,
 	) {
 		if let Some(ref mut peer) = self.peers.get_mut(peer_id) {
 			peer.info.best_hash = best_hash;
 			peer.info.best_number = best_number;
+			peer.info.is_synced = is_synced;
 		}
 	}
 
@@ -431,10 +450,10 @@ where
 		match validation_result {
 			BlockAnnounceValidationResult::Skip { peer_id: _ } => {},
 			BlockAnnounceValidationResult::Process { is_new_best, peer_id, announce } => {
-				if let Some((best_hash, best_number)) =
+				if let Some((best_hash, best_number, is_synced)) =
 					self.strategy.on_validated_block_announce(is_new_best, peer_id, &announce)
 				{
-					self.update_peer_info(&peer_id, best_hash, best_number);
+					self.update_peer_info(&peer_id, best_hash, best_number, is_synced);
 				}
 
 				if let Some(data) = announce.data {
@@ -512,6 +531,7 @@ where
 			return;
 		}
 
+		let is_synced = self.is_synced();
 		let is_best = self.client.info().best_hash == hash;
 		log::debug!(target: LOG_TARGET, "Reannouncing block {hash:?} is_best: {is_best}");
 
@@ -525,6 +545,7 @@ where
 				log::trace!(target: LOG_TARGET, "Announcing block {hash:?} to {peer_id}");
 				let message = BlockAnnounce {
 					header: header.clone(),
+					is_synced,
 					state: if is_best { Some(BlockState::Best) } else { Some(BlockState::Normal) },
 					data: Some(data.clone()),
 				};
@@ -683,6 +704,7 @@ where
 						number,
 						hash,
 						self.genesis_hash,
+						self.is_synced(),
 					)
 					.encode(),
 				);
@@ -939,6 +961,7 @@ where
 				roles: status.roles,
 				best_hash: status.best_hash,
 				best_number: status.best_number,
+				is_synced: status.is_synced,
 			},
 			known_blocks: LruHashSet::new(
 				NonZeroUsize::new(MAX_KNOWN_BLOCKS).expect("Constant is nonzero"),
@@ -948,7 +971,12 @@ where
 
 		// Only forward full peers to syncing strategy.
 		if status.roles.is_full() {
-			self.strategy.add_peer(peer_id, peer.info.best_hash, peer.info.best_number);
+			self.strategy.add_peer(
+				peer_id,
+				peer.info.best_hash,
+				peer.info.best_number,
+				peer.info.is_synced,
+			);
 		}
 
 		log::debug!(target: LOG_TARGET, "Connected {peer_id}");
@@ -1047,6 +1075,7 @@ where
 		set_config: &SetConfig,
 		metrics: NotificationMetrics,
 		peer_store_handle: Arc<dyn PeerStoreProvider>,
+        force_synced: bool,
 	) -> (N::NotificationProtocolConfig, Box<dyn NotificationService>) {
 		let block_announces_protocol = {
 			let genesis_hash = genesis_hash.as_ref();
@@ -1070,6 +1099,7 @@ where
 				best_number,
 				best_hash,
 				genesis_hash,
+				force_synced,
 			))),
 			set_config.clone(),
 			metrics,
