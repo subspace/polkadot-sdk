@@ -217,7 +217,8 @@ impl TestNetworkBuilder {
 			state_request_protocol_config.name.clone(),
 			None,
 			Arc::clone(&peer_store_handle),
-		)
+            true,
+        )
 		.unwrap();
 		let mut link = self.link.unwrap_or(Box::new(chain_sync_service.clone()));
 
