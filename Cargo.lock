@@ -16968,6 +16968,7 @@ dependencies = [
 name = "sc-consensus"
 version = "0.43.0"
 dependencies = [
+ "async-lock 3.4.0",
  "async-trait",
  "futures",
  "log",

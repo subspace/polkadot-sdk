@@ -27,9 +27,14 @@
 //! instantiated. The `BasicQueue` and `BasicVerifier` traits allow serial
 //! queues to be instantiated simply.
 
+use async_lock::RwLock;
 use log::{debug, trace};
 use std::{
 	fmt,
+	future::Future,
+	ops::Deref,
+	pin::Pin,
+	sync::Arc,
 	time::{Duration, Instant},
 };
 
@@ -61,7 +66,33 @@ pub mod buffered_link;
 pub mod mock;
 
 /// Shared block import struct used by the queue.
-pub type BoxBlockImport<B> = Box<dyn BlockImport<B, Error = ConsensusError> + Send + Sync>;
+pub struct SharedBlockImport<Block: BlockT>(
+	Arc<RwLock<dyn BlockImport<Block, Error = ConsensusError> + Send + Sync>>,
+);
+
+impl<Block: BlockT> Clone for SharedBlockImport<Block> {
+	fn clone(&self) -> Self {
+		Self(Arc::clone(&self.0))
+	}
+}
+
+impl<Block: BlockT> Deref for SharedBlockImport<Block> {
+	type Target = RwLock<dyn BlockImport<Block, Error = ConsensusError> + Send + Sync>;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl<Block: BlockT> SharedBlockImport<Block> {
+	/// New instance
+	pub fn new<BI>(block_import: BI) -> Self
+	where
+		BI: BlockImport<Block, Error = ConsensusError> + Send + Sync + 'static,
+	{
+		Self(Arc::new(RwLock::new(block_import)))
+	}
+}
 
 /// Shared justification import struct used by the queue.
 pub type BoxJustificationImport<B> =
@@ -101,6 +132,22 @@ pub trait Verifier<B: BlockT>: Send + Sync {
 	/// Verify the given block data and return the `BlockImportParams` to
 	/// continue the block import process.
 	async fn verify(&self, block: BlockImportParams<B>) -> Result<BlockImportParams<B>, String>;
+}
+
+impl<Block> Verifier<Block> for Arc<dyn Verifier<Block>>
+where
+	Block: BlockT,
+{
+	fn verify<'life0, 'async_trait>(
+		&'life0 self,
+		block: BlockImportParams<Block>,
+	) -> Pin<Box<dyn Future<Output = Result<BlockImportParams<Block>, String>> + Send + 'async_trait>>
+	where
+		'life0: 'async_trait,
+		Self: 'async_trait,
+	{
+		(**self).verify(block)
+	}
 }
 
 /// Blocks import queue API.
