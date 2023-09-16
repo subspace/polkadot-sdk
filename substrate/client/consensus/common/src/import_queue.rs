@@ -129,6 +129,18 @@ pub struct IncomingBlock<B: BlockT> {
 /// Verify a justification of a block
 #[async_trait::async_trait]
 pub trait Verifier<B: BlockT>: Send + Sync {
+	/// Whether verifier supports stateless verification.
+	///
+	/// Stateless verification means that verification on blocks can be done in arbitrary order,
+	/// doesn't expect parent block to be imported first, etc.
+	///
+	/// Verifiers that support stateless verification can verify multiple blocks concurrently,
+	/// significantly improving sync speed.
+	fn supports_stateless_verification(&self) -> bool {
+		// Unless re-defined by verifier is assumed to not support stateless verification.
+		false
+	}
+
 	/// Verify the given block data and return the `BlockImportParams` to
 	/// continue the block import process.
 	async fn verify(&self, block: BlockImportParams<B>) -> Result<BlockImportParams<B>, String>;
@@ -138,6 +150,10 @@ impl<Block> Verifier<Block> for Arc<dyn Verifier<Block>>
 where
 	Block: BlockT,
 {
+	fn supports_stateless_verification(&self) -> bool {
+		(**self).supports_stateless_verification()
+	}
+
 	fn verify<'life0, 'async_trait>(
 		&'life0 self,
 		block: BlockImportParams<Block>,
@@ -278,7 +294,9 @@ where
 	Block: BlockT,
 	BI: BlockImport<Block, Error = ConsensusError>,
 {
-	match verify_single_block_metered(import_handle, block_origin, block, verifier, None).await? {
+	match verify_single_block_metered(import_handle, block_origin, block, verifier, false, None)
+		.await?
+	{
 		SingleBlockVerificationOutcome::Imported(import_status) => Ok(import_status),
 		SingleBlockVerificationOutcome::Verified(import_parameters) =>
 			import_single_block_metered(import_handle, import_parameters, None).await,
@@ -347,6 +365,7 @@ pub(crate) async fn verify_single_block_metered<Block, BI>(
 	block_origin: BlockOrigin,
 	block: IncomingBlock<Block>,
 	verifier: &dyn Verifier<Block>,
+	allow_missing_parent: bool,
 	metrics: Option<&Metrics>,
 ) -> Result<SingleBlockVerificationOutcome<Block>, BlockImportError>
 where
@@ -385,7 +404,7 @@ where
 				parent_hash,
 				allow_missing_state: block.allow_missing_state,
 				import_existing: block.import_existing,
-				allow_missing_parent: block.state.is_some(),
+				allow_missing_parent: allow_missing_parent || block.state.is_some(),
 			})
 			.await,
 	)? {
