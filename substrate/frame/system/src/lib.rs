@@ -137,17 +137,23 @@ const LOG_TARGET: &str = "runtime::system";
 /// Compute the trie root of a list of extrinsics.
 ///
 /// The merkle proof is using the same trie as runtime state with
-/// `state_version` 0.
-pub fn extrinsics_root<H: Hash, E: codec::Encode>(extrinsics: &[E]) -> H::Output {
-	extrinsics_data_root::<H>(extrinsics.iter().map(codec::Encode::encode).collect())
+/// `state_version`.
+pub fn extrinsics_root<H: Hash, E: codec::Encode>(
+	extrinsics: &[E],
+	state_version: sp_core::storage::StateVersion,
+) -> H::Output {
+	extrinsics_data_root::<H>(extrinsics.iter().map(codec::Encode::encode).collect(), state_version)
 }
 
 /// Compute the trie root of a list of extrinsics.
 ///
 /// The merkle proof is using the same trie as runtime state with
-/// `state_version` 0.
-pub fn extrinsics_data_root<H: Hash>(xts: Vec<Vec<u8>>) -> H::Output {
-	H::ordered_trie_root(xts, sp_core::storage::StateVersion::V0)
+/// `state_version`.
+pub fn extrinsics_data_root<H: Hash>(
+	xts: Vec<Vec<u8>>,
+	state_version: sp_core::storage::StateVersion,
+) -> H::Output {
+	H::ordered_trie_root(xts, state_version)
 }
 
 /// An object to track the currently used extrinsic weight in a block.
@@ -205,6 +211,8 @@ pub mod pallet {
 
 	/// Default implementations of [`DefaultConfig`], which can be used to implement [`Config`].
 	pub mod config_preludes {
+		use sp_core::{parameter_types, storage::StateVersion};
+
 		use super::{inject_runtime_type, DefaultConfig};
 
 		/// Provides a viable default config that can be used with
@@ -214,6 +222,10 @@ pub mod pallet {
 		/// See `Test` in the `default-config` example pallet's `test.rs` for an example of
 		/// a downstream user of this particular `TestDefaultConfig`
 		pub struct TestDefaultConfig;
+
+		parameter_types! {
+			pub const ExtrinsicsRootStateVersion: StateVersion = StateVersion::V0;
+		}
 
 		#[frame_support::register_default_impl(TestDefaultConfig)]
 		impl DefaultConfig for TestDefaultConfig {
@@ -243,6 +255,7 @@ pub mod pallet {
 			type BaseCallFilter = frame_support::traits::Everything;
 			type BlockHashCount = frame_support::traits::ConstU64<10>;
 			type OnSetCode = ();
+			type ExtrinsicsRootStateVersion = ExtrinsicsRootStateVersion;
 		}
 	}
 
@@ -401,6 +414,9 @@ pub mod pallet {
 
 		/// The maximum number of consumers allowed on a single account.
 		type MaxConsumers: ConsumerLimits;
+
+		/// State verison used to derive extrinsics root.
+		type ExtrinsicsRootStateVersion: Get<sp_core::storage::StateVersion>;
 	}
 
 	#[pallet::pallet]
@@ -1447,7 +1463,8 @@ impl<T: Config> Pallet<T> {
 		let extrinsics = (0..ExtrinsicCount::<T>::take().unwrap_or_default())
 			.map(ExtrinsicData::<T>::take)
 			.collect();
-		let extrinsics_root = extrinsics_data_root::<T::Hashing>(extrinsics);
+		let extrinsics_root =
+			extrinsics_data_root::<T::Hashing>(extrinsics, T::ExtrinsicsRootStateVersion::get());
 
 		// move block hash pruning window by one block
 		let block_hash_count = T::BlockHashCount::get();

@@ -50,7 +50,10 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_core::{traits::SpawnNamed, Decode};
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
-use std::{sync::Arc, time::Duration};
+use std::{
+	sync::{atomic::Ordering, Arc},
+	time::Duration,
+};
 
 // Given the sporadic nature of the explicit recovery operation and the
 // possibility to retry infinite times this value is more than enough.
@@ -451,7 +454,7 @@ where
 	RCInterface: RelayChainInterface + Clone + 'static,
 	IQ: ImportQueue<Block> + 'static,
 {
-	let warp_sync_params = match parachain_config.network.sync_mode {
+	let warp_sync_params = match parachain_config.network.sync_mode.load(Ordering::Relaxed) {
 		SyncMode::Warp => {
 			let target_block = warp_sync_get::<Block, RCInterface>(
 				para_id,
@@ -484,7 +487,7 @@ where
 		import_queue,
 		block_announce_validator_builder: Some(Box::new(move |_| block_announce_validator)),
 		warp_sync_params,
-        block_relay: None,
+		block_relay: None,
 	})
 }
 
