@@ -21,7 +21,7 @@ use super::*;
 
 use crate as pallet_preimage;
 use frame_support::{
-	ord_parameter_types,
+	ord_parameter_types, parameter_types,
 	traits::{ConstU32, ConstU64, Everything},
 	weights::constants::RocksDbWeight,
 };
@@ -42,6 +42,10 @@ frame_support::construct_runtime!(
 		Preimage: pallet_preimage,
 	}
 );
+
+parameter_types! {
+	pub const ExtrinsicsRootStateVersion: sp_core::storage::StateVersion = sp_core::storage::StateVersion::V0;
+}
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = Everything;
@@ -67,6 +71,7 @@ impl frame_system::Config for Test {
 	type SS58Prefix = ();
 	type OnSetCode = ();
 	type MaxConsumers = ConstU32<16>;
+	type ExtrinsicsRootStateVersion = ExtrinsicsRootStateVersion;
 }
 
 impl pallet_balances::Config for Test {

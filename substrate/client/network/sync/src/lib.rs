@@ -3741,7 +3741,7 @@ mod test {
 
 		let peer_id1 = PeerId::random();
 		let best_block = blocks[3].clone();
-		sync.new_peer(peer_id1, best_block.hash(), *best_block.header().number())
+		sync.new_peer(peer_id1, best_block.hash(), *best_block.header().number(), true)
 			.unwrap();
 
 		sync.peers.get_mut(&peer_id1).unwrap().state = PeerSyncState::Available;
