@@ -146,7 +146,8 @@ impl<B: BlockT> BlockCollection<B> {
 		};
 		// crop to peers best
 		if range.start > peer_best {
-			trace!(target: "sync", "Out of range for peer {} ({} vs {})", who, range.start, peer_best);
+			trace!(target: "sync", "Out of range for peer {who}, peer_common = {common}, \
+			                       peer_best = {peer_best}, range = {range:?}");
 			return None
 		}
 		range.end = cmp::min(peer_best + One::one(), range.end);
@@ -157,7 +158,8 @@ impl<B: BlockT> BlockCollection<B> {
 			.next()
 			.map_or(false, |(n, _)| range.start > *n + max_ahead.into())
 		{
-			trace!(target: "sync", "Too far ahead for peer {} ({})", who, range.start);
+			trace!(target: "sync", "Too far ahead for peer {who}, peer_common = {common}, \
+			                       peer_best = {peer_best}, range = {range:?}, max_ahead = {max_ahead}");
 			return None
 		}
 

@@ -1561,12 +1561,27 @@ where
 		// the start block has a parent on chain.
 		let parent_on_chain =
 			self.blocks.first_ready_block_header(start_block).map_or(false, |hdr| {
-				std::matches!(
-					self.block_status(hdr.parent_hash()).unwrap_or(BlockStatus::Unknown),
+				let block_status = self.block_status(hdr.parent_hash());
+				let parent_on_chain = std::matches!(
+					*block_status.as_ref().unwrap_or(&BlockStatus::Unknown),
 					BlockStatus::InChainWithState |
 						BlockStatus::InChainPruned |
 						BlockStatus::Queued
-				)
+				);
+				if !parent_on_chain {
+					trace!(
+						target: LOG_TARGET,
+						"Ready block parent not on chain: block_status={:?}, best_queued={}/{}, \
+						first_ready={}/{}, first_ready_parent={}",
+						block_status,
+						self.best_queued_number,
+						self.best_queued_hash,
+						*hdr.number(),
+						hdr.hash(),
+						hdr.parent_hash()
+					);
+				}
+				parent_on_chain
 			});
 
 		if !parent_on_chain {
