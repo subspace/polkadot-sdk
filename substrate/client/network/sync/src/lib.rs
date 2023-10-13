@@ -3881,6 +3881,7 @@ mod test {
 		let non_canonical_chain_length = common_ancestor + 3;
 		let canonical_chain_length = common_ancestor + max_blocks_per_request + 10;
 
+		let import_queue = Box::new(sc_consensus::import_queue::mock::MockImportQueueHandle::new());
 		let (_chain_sync_network_provider, chain_sync_network_handle) =
 			NetworkServiceProvider::new();
 		let mut client = Arc::new(TestClientBuilder::new().build());
@@ -3908,14 +3909,22 @@ mod test {
 				.collect::<Vec<_>>()
 		};
 
-		let mut sync = ChainSync::new(
-			SyncMode::Full,
+		let (mut sync, _) = ChainSync::new(
+			Arc::new(Atomic::new(SyncMode::Full)),
 			client.clone(),
-			ProtocolName::from("test-block-announce-protocol"),
+			ProtocolId::from("test-protocol-name"),
+			&Some(String::from("test-fork-id")),
+			Roles::from(&Role::Full),
 			1,
 			max_blocks_per_request,
 			None,
+			None,
 			chain_sync_network_handle,
+			import_queue,
+			Arc::new(MockBlockDownloader::new()),
+			ProtocolName::from("state-request"),
+			None,
+			true,
 		)
 		.unwrap();
 
@@ -3923,7 +3932,7 @@ mod test {
 		let peer_id = PeerId::random();
 		let canonical_tip = canonical_blocks.last().unwrap().clone();
 		let mut request = sync
-			.new_peer(peer_id, canonical_tip.hash(), *canonical_tip.header().number())
+			.new_peer(peer_id, canonical_tip.hash(), *canonical_tip.header().number(), true)
 			.unwrap()
 			.unwrap();
 		assert_eq!(FromBlock::Number(client.info().best_number), request.from);
@@ -3968,7 +3977,7 @@ mod test {
 		let res = sync.on_block_data(&peer_id, Some(request), response).unwrap();
 		assert!(matches!(
 			res,
-			OnBlockData::Import(ImportBlocksAction{ origin: _, blocks }) if blocks.is_empty()
+			OnBlockData::Import(_, blocks) if blocks.is_empty()
 		),);
 
 		// Gap filled, expect max_blocks_per_request being imported now.
@@ -3978,7 +3987,7 @@ mod test {
 		let response = create_block_response(resp_blocks.clone());
 		let res = sync.on_block_data(&peer_id, Some(request), response).unwrap();
 		let to_import: Vec<_> = match &res {
-			OnBlockData::Import(ImportBlocksAction { origin: _, blocks }) => {
+			OnBlockData::Import(_, blocks) => {
 				assert_eq!(blocks.len(), sync.max_blocks_per_request as usize);
 				blocks
 					.iter()
@@ -4029,7 +4038,7 @@ mod test {
 		let res = sync.on_block_data(&peer_id, Some(request), response).unwrap();
 		assert!(matches!(
 			res,
-			OnBlockData::Import(ImportBlocksAction{ origin: _, blocks }) if blocks.len() == 10 as usize
+			OnBlockData::Import(_, blocks) if blocks.len() == 10 as usize
 		),);
 		let _ = sync.on_blocks_processed(
 			max_blocks_per_request as usize,
@@ -4069,6 +4078,7 @@ mod test {
 		let non_canonical_chain_length = common_ancestor + 3;
 		let canonical_chain_length = common_ancestor + max_blocks_per_request + 10;
 
+		let import_queue = Box::new(sc_consensus::import_queue::mock::MockImportQueueHandle::new());
 		let (_chain_sync_network_provider, chain_sync_network_handle) =
 			NetworkServiceProvider::new();
 		let mut client = Arc::new(TestClientBuilder::new().build());
@@ -4096,14 +4106,22 @@ mod test {
 				.collect::<Vec<_>>()
 		};
 
-		let mut sync = ChainSync::new(
-			SyncMode::Full,
+		let (mut sync, _) = ChainSync::new(
+			Arc::new(Atomic::new(SyncMode::Full)),
 			client.clone(),
-			ProtocolName::from("test-block-announce-protocol"),
+			ProtocolId::from("test-protocol-name"),
+			&Some(String::from("test-fork-id")),
+			Roles::from(&Role::Full),
 			1,
 			max_blocks_per_request,
 			None,
+			None,
 			chain_sync_network_handle,
+			import_queue,
+			Arc::new(MockBlockDownloader::new()),
+			ProtocolName::from("state-request"),
+			None,
+			true,
 		)
 		.unwrap();
 
@@ -4111,7 +4129,7 @@ mod test {
 		let peer_id = PeerId::random();
 		let canonical_tip = canonical_blocks.last().unwrap().clone();
 		let mut request = sync
-			.new_peer(peer_id, canonical_tip.hash(), *canonical_tip.header().number())
+			.new_peer(peer_id, canonical_tip.hash(), *canonical_tip.header().number(), true)
 			.unwrap()
 			.unwrap();
 		assert_eq!(FromBlock::Number(client.info().best_number), request.from);
@@ -4156,7 +4174,7 @@ mod test {
 		let res = sync.on_block_data(&peer_id, Some(request), response).unwrap();
 		assert!(matches!(
 			res,
-			OnBlockData::Import(ImportBlocksAction{ origin: _, blocks }) if blocks.is_empty()
+			OnBlockData::Import(_, blocks) if blocks.is_empty()
 		),);
 
 		// Gap filled, expect max_blocks_per_request being imported now.
@@ -4166,7 +4184,7 @@ mod test {
 		let response = create_block_response(resp_blocks.clone());
 		let res = sync.on_block_data(&peer_id, Some(request), response).unwrap();
 		let to_import: Vec<_> = match &res {
-			OnBlockData::Import(ImportBlocksAction { origin: _, blocks }) => {
+			OnBlockData::Import(_, blocks) => {
 				assert_eq!(blocks.len(), sync.max_blocks_per_request as usize);
 				blocks
 					.iter()
@@ -4217,7 +4235,7 @@ mod test {
 		let res = sync.on_block_data(&peer_id, Some(request), response).unwrap();
 		assert!(matches!(
 			res,
-			OnBlockData::Import(ImportBlocksAction{ origin: _, blocks }) if blocks.len() == 10 as usize
+			OnBlockData::Import(_, blocks) if blocks.len() == 10 as usize
 		),);
 		let _ = sync.on_blocks_processed(
 			max_blocks_per_request as usize,
