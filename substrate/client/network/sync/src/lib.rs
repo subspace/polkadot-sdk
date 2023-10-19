@@ -1094,7 +1094,22 @@ where
 			return
 		}
 
+		let mut is_reorg = false;
 		if is_best {
+			if peer.best_number == number && peer.best_hash != hash {
+				trace!(
+					target: "sync",
+					"Reorg detected on block announce from {}: {}, hash {} -> {}, \
+					 known_parent = {}, {:?}",
+					who,
+					number,
+					peer.best_hash,
+					hash,
+					known_parent,
+					announce.summary(),
+				);
+				is_reorg = true;
+			}
 			// update their best block
 			peer.best_number = number;
 			peer.best_hash = hash;
@@ -1107,7 +1122,11 @@ where
 		// If the announced block is the best they have and is not ahead of us, our common number
 		// is either one further ahead or it's the one they just announced, if we know about it.
 		if is_best {
-			if known && self.best_queued_number >= number {
+			if is_reorg && known_parent {
+				// If the peer announced different hash for same block number,
+				// fall back to the parent as the common ancestor.
+				peer.common_number = number.saturating_sub(One::one());
+			} else if known && self.best_queued_number >= number {
 				self.update_peer_common_number(&who, number);
 			} else if announce.header.parent_hash() == &self.best_queued_hash ||
 				known_parent && self.best_queued_number >= number
