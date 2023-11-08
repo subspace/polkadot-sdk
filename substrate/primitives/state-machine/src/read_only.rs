@@ -195,6 +195,10 @@ where
 		unimplemented!("Transactions are not supported by ReadOnlyExternalities");
 	}
 
+	fn transaction_storage_size(&mut self) -> u64 {
+		unimplemented!("Transactions are not supported by ReadOnlyExternalities");
+	}
+
 	fn wipe(&mut self) {}
 
 	fn commit(&mut self) {}

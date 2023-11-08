@@ -478,6 +478,15 @@ impl<H: Hasher> OverlayedChanges<H> {
 		Ok(())
 	}
 
+	/// Get the total storage used by the current transaction.
+	pub fn transaction_storage_size(&mut self) -> u64 {
+		let mut total = 0;
+		for (_, overlayed_value) in self.changes() {
+			total += overlayed_value.value().map_or(0, |v| v.len() as u64)
+		}
+		total
+	}
+
 	/// Call this before transfering control to the runtime.
 	///
 	/// This protects all existing transactions from being removed by the runtime.

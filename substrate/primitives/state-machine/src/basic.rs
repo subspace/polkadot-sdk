@@ -303,6 +303,10 @@ impl Externalities for BasicExternalities {
 		self.overlay.commit_transaction().map_err(drop)
 	}
 
+	fn transaction_storage_size(&mut self) -> u64 {
+		self.overlay.transaction_storage_size()
+	}
+
 	fn wipe(&mut self) {}
 
 	fn commit(&mut self) {}

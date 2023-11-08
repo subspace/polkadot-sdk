@@ -291,6 +291,10 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("storage_commit_transaction: unsupported feature for parachain validation")
 	}
 
+    fn transaction_storage_size(&mut self) -> u64 {
+		panic!("storage_commit_transaction: unsupported feature for parachain validation")
+    }
+
 	fn wipe(&mut self) {
 		panic!("wipe: unsupported feature for parachain validation")
 	}

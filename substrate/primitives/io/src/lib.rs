@@ -367,6 +367,11 @@ pub trait Storage {
 		self.storage_commit_transaction()
 			.expect("No open transaction that can be committed.");
 	}
+
+	/// Get the total storage used by the current transaction.
+	fn transaction_storage_size(&mut self) -> u64 {
+		self.transaction_storage_size()
+	}
 }
 
 /// Interface for accessing the child storage for default child trie,

@@ -239,6 +239,9 @@ pub trait Externalities: ExtensionStore {
 	/// no transaction is open that can be closed.
 	fn storage_commit_transaction(&mut self) -> Result<(), ()>;
 
+	/// Get the total storage used by the current transaction.
+	fn transaction_storage_size(&mut self) -> u64;
+
 	/// Index specified transaction slice and store it.
 	fn storage_index_transaction(&mut self, _index: u32, _hash: &[u8], _size: u32) {
 		unimplemented!("storage_index_transaction");

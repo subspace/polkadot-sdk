@@ -592,6 +592,10 @@ where
 		self.overlay.commit_transaction().map_err(|_| ())
 	}
 
+	fn transaction_storage_size(&mut self) -> u64 {
+		self.overlay.transaction_storage_size()
+	}
+
 	fn wipe(&mut self) {
 		for _ in 0..self.overlay.transaction_depth() {
 			self.overlay.rollback_transaction().expect(BENCHMARKING_FN);
