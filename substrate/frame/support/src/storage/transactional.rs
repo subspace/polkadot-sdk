@@ -26,7 +26,9 @@
 //!
 //! [`with_transaction`] provides a way to run a given closure in a transactional context.
 
-use sp_io::storage::{commit_transaction, rollback_transaction, start_transaction};
+use sp_io::storage::{
+	commit_transaction, rollback_transaction, start_transaction, transaction_storage_size,
+};
 use sp_runtime::{DispatchError, TransactionOutcome, TransactionalError};
 
 /// The type that is being used to store the current number of active layers.
@@ -37,6 +39,10 @@ pub type Layer = u32;
 pub const TRANSACTION_LEVEL_KEY: &[u8] = b":transaction_level:";
 /// The maximum number of nested layers.
 pub const TRANSACTIONAL_LIMIT: Layer = 255;
+
+/// If the transaction storage use exceeds MAX_TRANSACTION_STORAGE_SIZE,
+/// the transaction would be rejected/rolled back.
+pub const MAX_TRANSACTION_STORAGE_SIZE: Option<u64> = Some(64_000_000);
 
 /// Returns the current number of nested transactional layers.
 fn get_transaction_level() -> Layer {
@@ -117,7 +123,20 @@ where
 
 	match f() {
 		TransactionOutcome::Commit(res) => {
-			commit_transaction();
+			// Rollback if the storage usage exceeds threshold.
+			let usage = transaction_storage_size();
+			let commit =
+				MAX_TRANSACTION_STORAGE_SIZE.as_ref().map_or(true, |limit| usage <= *limit);
+			if commit {
+				commit_transaction();
+			} else {
+				log::warn!(
+					"with_transaction(): transaction storage exceeds limit: {}, {:?}",
+					usage,
+					MAX_TRANSACTION_STORAGE_SIZE,
+				);
+				rollback_transaction();
+			}
 			res
 		},
 		TransactionOutcome::Rollback(res) => {
