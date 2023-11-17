@@ -105,6 +105,8 @@ where
 	/// Extensions registered with this instance.
 	#[cfg(feature = "std")]
 	extensions: Option<OverlayedExtensions<'a>>,
+	/// Storage limit for the extrinsic execution.
+	storage_limit: Option<u64>,
 }
 
 impl<'a, H, B> Ext<'a, H, B>
@@ -115,7 +117,7 @@ where
 	/// Create a new `Ext`.
 	#[cfg(not(feature = "std"))]
 	pub fn new(overlay: &'a mut OverlayedChanges<H>, backend: &'a B) -> Self {
-		Ext { overlay, backend, id: 0 }
+		Ext { overlay, backend, id: 0, storage_limit: None }
 	}
 
 	/// Create a new `Ext` from overlayed changes and read-only backend
@@ -130,7 +132,13 @@ where
 			backend,
 			id: rand::random(),
 			extensions: extensions.map(OverlayedExtensions::new),
+			storage_limit: None,
 		}
+	}
+
+	/// Sets the storage limit for extrinsic execution.
+	pub fn set_storage_limit(&mut self, storage_limit: Option<u64>) {
+		self.storage_limit = storage_limit;
 	}
 }
 

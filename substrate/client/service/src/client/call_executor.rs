@@ -18,7 +18,10 @@
 
 use super::{client::ClientConfig, wasm_override::WasmOverride, wasm_substitutes::WasmSubstitutes};
 use sc_client_api::{
-	backend, call_executor::CallExecutor, execution_extensions::ExecutionExtensions, HeaderBackend,
+	backend,
+	call_executor::{CallExecutor, CallExecutorConfig},
+	execution_extensions::ExecutionExtensions,
+	HeaderBackend,
 };
 use sc_executor::{RuntimeVersion, RuntimeVersionOf};
 use sp_api::ProofRecorder;
@@ -39,6 +42,7 @@ pub struct LocalCallExecutor<Block: BlockT, B, E> {
 	wasm_override: Arc<Option<WasmOverride>>,
 	wasm_substitutes: WasmSubstitutes<Block, E, B>,
 	execution_extensions: Arc<ExecutionExtensions<Block>>,
+	executor_config: Option<CallExecutorConfig>,
 }
 
 impl<Block: BlockT, B, E> LocalCallExecutor<Block, B, E>
@@ -71,6 +75,7 @@ where
 			wasm_override: Arc::new(wasm_override),
 			wasm_substitutes,
 			execution_extensions: Arc::new(execution_extensions),
+			executor_config: client_config.executor_config,
 		})
 	}
 
@@ -141,6 +146,7 @@ where
 			wasm_override: self.wasm_override.clone(),
 			wasm_substitutes: self.wasm_substitutes.clone(),
 			execution_extensions: self.execution_extensions.clone(),
+			executor_config: self.executor_config.clone(),
 		}
 	}
 }
@@ -188,6 +194,9 @@ where
 			&mut extensions,
 			&runtime_code,
 			context,
+			self.executor_config
+				.as_ref()
+				.and_then(|config| config.limits.storage_limit(method)),
 		)
 		.set_parent_hash(at_hash);
 
@@ -235,6 +244,9 @@ where
 					&mut extensions,
 					&runtime_code,
 					call_context,
+					self.executor_config
+						.as_ref()
+						.and_then(|config| config.limits.storage_limit(method)),
 				)
 				.set_parent_hash(at_hash);
 				state_machine.execute()
@@ -249,6 +261,9 @@ where
 					&mut extensions,
 					&runtime_code,
 					call_context,
+					self.executor_config
+						.as_ref()
+						.and_then(|config| config.limits.storage_limit(method)),
 				)
 				.set_parent_hash(at_hash);
 				state_machine.execute()
@@ -291,6 +306,9 @@ where
 			call_data,
 			&runtime_code,
 			&mut self.execution_extensions.extensions(at_hash, at_number),
+			self.executor_config
+				.as_ref()
+				.and_then(|config| config.limits.storage_limit(method)),
 		)
 		.map_err(Into::into)
 	}

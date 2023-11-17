@@ -93,3 +93,16 @@ pub trait CallExecutor<B: BlockT>: RuntimeVersionOf {
 		call_data: &[u8],
 	) -> Result<(Vec<u8>, StorageProof), sp_blockchain::Error>;
 }
+
+/// Trait to get the limits for extrinsic execution.
+pub trait ExecutorLimits: Send + Sync + std::fmt::Debug {
+	/// Returns the storage limit to apply for the given method.
+	fn storage_limit(&self, method_name: &str) -> Option<u64>;
+}
+
+/// Config for the call execution.
+#[derive(Debug, Clone)]
+pub struct CallExecutorConfig {
+	/// Limits to for extrinsic execution.
+	pub limits: std::sync::Arc<dyn ExecutorLimits>,
+}

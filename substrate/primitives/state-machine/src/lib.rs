@@ -209,6 +209,7 @@ mod execution {
 		/// Used for logging.
 		parent_hash: Option<H::Out>,
 		context: CallContext,
+		storage_limit: Option<u64>,
 	}
 
 	impl<'a, B, H, Exec> Drop for StateMachine<'a, B, H, Exec>
@@ -238,6 +239,7 @@ mod execution {
 			extensions: &'a mut Extensions,
 			runtime_code: &'a RuntimeCode,
 			context: CallContext,
+			storage_limit: Option<u64>,
 		) -> Self {
 			Self {
 				backend,
@@ -250,6 +252,7 @@ mod execution {
 				stats: StateMachineStats::default(),
 				parent_hash: None,
 				context,
+				storage_limit,
 			}
 		}
 
@@ -275,6 +278,7 @@ mod execution {
 				.expect("StateMachine is never called from the runtime; qed");
 
 			let mut ext = Ext::new(self.overlay, self.backend, Some(self.extensions));
+			ext.set_storage_limit(self.storage_limit.clone());
 
 			let ext_id = ext.id;
 
@@ -315,6 +319,7 @@ mod execution {
 		method: &str,
 		call_data: &[u8],
 		runtime_code: &RuntimeCode,
+		storage_limit: Option<u64>,
 	) -> Result<(Vec<u8>, StorageProof), Box<dyn Error>>
 	where
 		B: AsTrieBackend<H>,
@@ -331,6 +336,7 @@ mod execution {
 			call_data,
 			runtime_code,
 			&mut Default::default(),
+			storage_limit,
 		)
 	}
 
@@ -351,6 +357,7 @@ mod execution {
 		call_data: &[u8],
 		runtime_code: &RuntimeCode,
 		extensions: &mut Extensions,
+		storage_limit: Option<u64>,
 	) -> Result<(Vec<u8>, StorageProof), Box<dyn Error>>
 	where
 		S: trie_backend_essence::TrieBackendStorage<H>,
@@ -370,6 +377,7 @@ mod execution {
 			extensions,
 			runtime_code,
 			CallContext::Offchain,
+			storage_limit,
 		)
 		.execute()?;
 
@@ -389,6 +397,7 @@ mod execution {
 		method: &str,
 		call_data: &[u8],
 		runtime_code: &RuntimeCode,
+		storage_limit: Option<u64>,
 	) -> Result<Vec<u8>, Box<dyn Error>>
 	where
 		H: Hasher + 'static,
@@ -403,6 +412,7 @@ mod execution {
 			method,
 			call_data,
 			runtime_code,
+			storage_limit,
 		)
 	}
 
@@ -414,6 +424,7 @@ mod execution {
 		method: &str,
 		call_data: &[u8],
 		runtime_code: &RuntimeCode,
+		storage_limit: Option<u64>,
 	) -> Result<Vec<u8>, Box<dyn Error>>
 	where
 		H: Hasher,
@@ -429,6 +440,7 @@ mod execution {
 			&mut Extensions::default(),
 			runtime_code,
 			CallContext::Offchain,
+			storage_limit,
 		)
 		.execute()
 	}

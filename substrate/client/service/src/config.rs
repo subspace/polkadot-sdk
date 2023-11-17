@@ -18,6 +18,7 @@
 
 //! Service configuration.
 
+pub use sc_client_api::CallExecutorConfig;
 pub use sc_client_db::{BlocksPruning, Database, DatabaseSource, PruningMode};
 pub use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
 pub use sc_network::{
@@ -77,6 +78,8 @@ pub struct Configuration {
 	pub chain_spec: Box<dyn ChainSpec>,
 	/// Wasm execution method.
 	pub wasm_method: WasmExecutionMethod,
+	/// Call executor config.
+	pub executor_config: Option<CallExecutorConfig>,
 	/// Directory where local WASM runtimes live. These runtimes take precedence
 	/// over on-chain runtimes when the spec version matches. Set to `None` to
 	/// disable overrides (default).

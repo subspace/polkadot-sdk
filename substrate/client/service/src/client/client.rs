@@ -38,8 +38,8 @@ use sc_client_api::{
 	},
 	execution_extensions::ExecutionExtensions,
 	notifications::{StorageEventStream, StorageNotifications},
-	CallExecutor, ExecutorProvider, KeysIter, OnFinalityAction, OnImportAction, PairsIter,
-	ProofProvider, UsageProvider,
+	CallExecutor, CallExecutorConfig, ExecutorProvider, KeysIter, OnFinalityAction, OnImportAction,
+	PairsIter, ProofProvider, UsageProvider,
 };
 use sc_consensus::{
 	BlockCheckParams, BlockImportParams, ForkChoiceStrategy, ImportResult, StateAction,
@@ -199,6 +199,8 @@ pub struct ClientConfig<Block: BlockT> {
 	/// Map of WASM runtime substitute starting at the child of the given block until the runtime
 	/// version doesn't match anymore.
 	pub wasm_runtime_substitutes: HashMap<NumberFor<Block>, Vec<u8>>,
+	/// Executor config.
+	pub executor_config: Option<CallExecutorConfig>,
 }
 
 impl<Block: BlockT> Default for ClientConfig<Block> {
@@ -209,6 +211,7 @@ impl<Block: BlockT> Default for ClientConfig<Block> {
 			wasm_runtime_overrides: None,
 			no_genesis: false,
 			wasm_runtime_substitutes: HashMap::new(),
+			executor_config: None,
 		}
 	}
 }

@@ -229,6 +229,7 @@ where
 					SyncMode::LightState { .. } | SyncMode::Warp { .. }
 				),
 				wasm_runtime_substitutes,
+				executor_config: config.executor_config.clone(),
 			},
 		)?;
 

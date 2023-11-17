@@ -253,6 +253,7 @@ impl PalletCmd {
 			&mut extensions(),
 			&sp_state_machine::backend::BackendRuntimeCode::new(state).runtime_code()?,
 			CallContext::Offchain,
+			None,
 		)
 		.execute()
 		.map_err(|e| format!("{}: {}", ERROR_METADATA_NOT_FOUND, e))?;
@@ -390,6 +391,7 @@ impl PalletCmd {
 						&sp_state_machine::backend::BackendRuntimeCode::new(state)
 							.runtime_code()?,
 						CallContext::Offchain,
+						None,
 					)
 					.execute()
 					.map_err(|e| {
@@ -430,6 +432,7 @@ impl PalletCmd {
 						&sp_state_machine::backend::BackendRuntimeCode::new(state)
 							.runtime_code()?,
 						CallContext::Offchain,
+						None,
 					)
 					.execute()
 					.map_err(|e| format!("Error executing runtime benchmark: {}", e))?;
@@ -462,6 +465,7 @@ impl PalletCmd {
 						&sp_state_machine::backend::BackendRuntimeCode::new(state)
 							.runtime_code()?,
 						CallContext::Offchain,
+						None,
 					)
 					.execute()
 					.map_err(|e| format!("Error executing runtime benchmark: {}", e))?;

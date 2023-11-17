@@ -492,6 +492,7 @@ pub trait CliConfiguration<DCV: DefaultConfigurationValues = ()>: Sized {
 			blocks_pruning: self.blocks_pruning()?,
 			wasm_method: self.wasm_method()?,
 			wasm_runtime_overrides: self.wasm_runtime_overrides(),
+			executor_config: None,
 			rpc_addr: self.rpc_addr(DCV::rpc_listen_port())?,
 			rpc_methods: self.rpc_methods()?,
 			rpc_max_connections: self.rpc_max_connections()?,
