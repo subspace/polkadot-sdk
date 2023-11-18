@@ -173,11 +173,6 @@ impl WasmtimeInstance {
 		data: &[u8],
 		allocation_stats: &mut Option<AllocationStats>,
 	) -> Result<Vec<u8>> {
-		let log_bt = if let InvokeMethod::Export(name) = &method {
-			name.ends_with("apply_extrinsic")
-		} else {
-			false
-		};
 		match &mut self.strategy {
 			Strategy::LegacyInstanceReuse {
 				ref mut instance_wrapper,
@@ -197,14 +192,8 @@ impl WasmtimeInstance {
 				globals_snapshot.apply(&mut InstanceGlobals { instance: instance_wrapper });
 				let allocator = FreeingBumpHeapAllocator::new(*heap_base);
 
-				let result = perform_call(
-					data,
-					instance_wrapper,
-					entrypoint,
-					allocator,
-					allocation_stats,
-					log_bt,
-				);
+				let result =
+					perform_call(data, instance_wrapper, entrypoint, allocator, allocation_stats);
 
 				// Signal to the OS that we are done with the linear memory and that it can be
 				// reclaimed.
@@ -218,14 +207,7 @@ impl WasmtimeInstance {
 				let entrypoint = instance_wrapper.resolve_entrypoint(method)?;
 
 				let allocator = FreeingBumpHeapAllocator::new(heap_base);
-				perform_call(
-					data,
-					&mut instance_wrapper,
-					entrypoint,
-					allocator,
-					allocation_stats,
-					log_bt,
-				)
+				perform_call(data, &mut instance_wrapper, entrypoint, allocator, allocation_stats)
 			},
 		}
 	}
@@ -790,7 +772,6 @@ fn perform_call(
 	entrypoint: EntryPoint,
 	mut allocator: FreeingBumpHeapAllocator,
 	allocation_stats: &mut Option<AllocationStats>,
-	log_bt: bool,
 ) -> Result<Vec<u8>> {
 	let (data_ptr, data_len) = inject_input_data(instance_wrapper, &mut allocator, data)?;
 
@@ -799,18 +780,9 @@ fn perform_call(
 	// Set the host state before calling into wasm.
 	instance_wrapper.store_mut().data_mut().host_state = Some(host_state);
 
-	if log_bt {
-		log::warn!(
-			"xxx: perform_call(): before, bt = {}",
-			std::backtrace::Backtrace::force_capture()
-		);
-	}
 	let ret = entrypoint
 		.call(instance_wrapper.store_mut(), data_ptr, data_len)
 		.map(unpack_ptr_and_len);
-	if log_bt {
-		log::warn!("xxx: perform_call(): after, ret = {:?}", ret);
-	}
 
 	// Reset the host state
 	let host_state = instance_wrapper.store_mut().data_mut().host_state.take().expect(

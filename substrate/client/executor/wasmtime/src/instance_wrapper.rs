@@ -195,7 +195,6 @@ impl InstanceWrapper {
 				let func = export
 					.into_func()
 					.ok_or_else(|| Error::from(format!("Export {} is not a function", method)))?;
-				log::warn!("xxx: resolve_entrypoint(): InvokeMethod::Export(): {}", method);
 				EntryPoint::direct(func, &self.store).map_err(|_| {
 					Error::from(format!("Exported function '{}' has invalid signature.", method))
 				})?
