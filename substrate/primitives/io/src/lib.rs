@@ -195,6 +195,13 @@ pub trait Storage {
 		self.set_storage(key.to_vec(), value.to_vec());
 	}
 
+	/// Set `key` to `value` in the storage, subject to the transaction storage
+	/// limit if configured. Returns failure if setting the key exceeds the
+	/// storage limit.
+	fn set_with_limit_check(&mut self, key: &[u8], value: &[u8]) -> Result<(), ()> {
+		self.set_storage_with_limit(key.to_vec(), value.to_vec())
+	}
+
 	/// Clear the storage of the given `key` and its value.
 	fn clear(&mut self, key: &[u8]) {
 		self.clear_storage(key)

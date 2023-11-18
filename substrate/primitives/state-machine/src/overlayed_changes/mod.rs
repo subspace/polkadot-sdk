@@ -343,6 +343,36 @@ impl<H: Hasher> OverlayedChanges<H> {
 		self.top.set(key, val, self.extrinsic_index());
 	}
 
+	/// Set a new value for the specified key, subject to the specified storage limit.
+	///
+	/// Can be rolled back or committed when called inside a transaction.
+	pub fn set_storage_with_limit(
+		&mut self,
+		key: StorageKey,
+		val: Option<StorageValue>,
+		limit: u64,
+	) -> Result<(), ()> {
+		let size_write = val.as_ref().map(|x| x.len() as u64).unwrap_or(0);
+		if size_write > 0 {
+			let mut total = 0;
+			for (overlayed_key, overlayed_value) in self.changes() {
+				if *overlayed_key == key {
+					// Use the new value if the key already exists.
+					total += size_write;
+				} else {
+					total += overlayed_value.value().map_or(0, |v| v.len() as u64);
+				}
+			}
+
+			if total > limit {
+				return Err(())
+			}
+		}
+
+		self.set_storage(key, val);
+		Ok(())
+	}
+
 	/// Set a new value for the specified key and child.
 	///
 	/// `None` can be used to delete a value specified by the given key.

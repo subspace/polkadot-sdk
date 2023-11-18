@@ -130,6 +130,14 @@ where
 		unimplemented!("place_storage not supported in ReadOnlyExternalities")
 	}
 
+	fn place_storage_with_limit(
+		&mut self,
+		_key: StorageKey,
+		_maybe_value: Option<StorageValue>,
+	) -> Result<(), ()> {
+		unimplemented!("place_storage_with_limit not supported in ReadOnlyExternalities")
+	}
+
 	fn place_child_storage(
 		&mut self,
 		_child_info: &ChildInfo,
