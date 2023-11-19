@@ -418,7 +418,6 @@ where
 			return Ok(())
 		}
 
-		// NOTE: be careful about touching the key names – used outside substrate!
 		trace!(
 			target: "state",
 			method = "Put_Limit",
@@ -427,31 +426,20 @@ where
 			value = ?value.as_ref().map(HexDisplay::from),
 			value_encoded = %HexDisplay::from(
 				&value
-					.as_ref()
-					.map(|v| EncodeOpaqueValue(v.clone()))
-					.encode()
+				.as_ref()
+				.map(|v| EncodeOpaqueValue(v.clone()))
+				.encode()
 			),
 			limit = ?self.storage_limit,
 		);
 
-		let result = if let Some(limit) = self.storage_limit.as_ref() {
+		// NOTE: be careful about touching the key names – used outside substrate!
+		if let Some(limit) = self.storage_limit.as_ref() {
 			self.overlay.set_storage_with_limit(key, value, *limit)
 		} else {
 			self.overlay.set_storage(key, value);
 			Ok(())
-		};
-
-		if !result.is_ok() {
-			trace!(
-				target: "state",
-				method = "Put_Limit",
-				ext_id = %HexDisplay::from(&self.id.to_le_bytes()),
-				?result,
-				"Failed to set value, limit exceeded"
-			);
 		}
-
-		result
 	}
 
 	fn place_child_storage(

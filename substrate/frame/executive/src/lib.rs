@@ -585,7 +585,15 @@ where
 
 		// Decode parameters and dispatch
 		let dispatch_info = xt.get_dispatch_info();
-		let r = Applyable::apply::<UnsignedValidator>(xt, &dispatch_info, encoded_len)?;
+		let r = Applyable::apply::<UnsignedValidator>(xt, &dispatch_info, encoded_len);
+		if r.is_err() {
+			log::error!(
+				target: LOG_TARGET,
+				"Executive::apply_extrinsic(): ext failed: {:?}",
+				r
+			);
+		}
+		let r = r?;
 
 		// Mandatory(inherents) are not allowed to fail.
 		//

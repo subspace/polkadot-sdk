@@ -82,7 +82,13 @@ where
 		let res = self.function.dispatch(RuntimeOrigin::from(maybe_who));
 		let post_info = match res {
 			Ok(info) => info,
-			Err(err) => err.post_info,
+			Err(err) => {
+				log::error!(
+					target: "runtime::executive",
+					"CheckedExtrinsic::apply(): ext failed",
+				);
+				err.post_info
+			},
 		};
 		Extra::post_dispatch(
 			maybe_pre,

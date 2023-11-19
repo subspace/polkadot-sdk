@@ -361,13 +361,13 @@ impl<H: Hasher> OverlayedChanges<H> {
 					total += overlayed_value.value().map_or(0, |v| v.len() as u64);
 				}
 			}
-			warn!(
-				target: "state",
-				"Overlay::set_storage_with_limit(): write = {}, total = {}, limit = {}, depth = {}",
-				size_write, total, limit, self.transaction_depth()
-			);
 
 			if total > limit {
+				warn!(
+					target: "state",
+					"Overlay::storage limit exceeded: write = {}, total = {}, limit = {}, depth = {}",
+					size_write, total, limit, self.transaction_depth()
+				);
 				return Err(())
 			}
 		}

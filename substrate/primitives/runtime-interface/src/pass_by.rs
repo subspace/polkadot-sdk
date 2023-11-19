@@ -431,3 +431,91 @@ impl<T: Copy + Into<u8> + TryFrom<u8, Error = ()>> PassByImpl<T> for Enum<T> {
 impl<T: Copy + Into<u8> + TryFrom<u8>> RIType for Enum<T> {
 	type FFIType = u32;
 }
+
+/// Result that causes a trap on failure.
+#[derive(Debug)]
+pub enum ResultWithTrap {
+	/// Success
+	Ok,
+
+	/// When host function returns `Err`, this would
+	/// result in a trap in WASM.
+	Err,
+}
+
+impl ResultWithTrap {
+	/// Checks if the result is ok.
+	pub fn is_ok(&self) -> bool {
+		matches!(self, Self::Ok)
+	}
+
+	/// Checks if the result is error.
+	pub fn is_err(&self) -> bool {
+		matches!(self, Self::Err)
+	}
+}
+
+impl From<bool> for ResultWithTrap {
+	fn from(result: bool) -> Self {
+		if result {
+			Self::Ok
+		} else {
+			Self::Err
+		}
+	}
+}
+
+/// `ResultWithTrap` is passed as `u32`.
+///
+/// - `0`: ResultWithTrap::Ok
+/// - `1`: ResultWithTrap:Err
+impl RIType for ResultWithTrap {
+	type FFIType = u32;
+}
+
+#[cfg(feature = "std")]
+impl IntoFFIValue for ResultWithTrap {
+	fn into_ffi_value(self, _: &mut dyn FunctionContext) -> Result<u32> {
+		match self {
+			Self::Ok => Ok(0),
+			Self::Err => Err("Trap requested".into()),
+		}
+	}
+}
+
+#[cfg(not(feature = "std"))]
+impl IntoFFIValue for ResultWithTrap {
+	type Owned = ();
+
+	fn into_ffi_value(&self) -> WrappedFFIValue<u32> {
+		let ret = match self {
+			Self::Ok => 0,
+			Self::Err => 1,
+		};
+		ret.into()
+	}
+}
+
+#[cfg(feature = "std")]
+impl FromFFIValue for ResultWithTrap {
+	type SelfInstance = ResultWithTrap;
+
+	fn from_ffi_value(_: &mut dyn FunctionContext, arg: u32) -> Result<ResultWithTrap> {
+		if arg == 0 {
+			Ok(Self::Ok)
+		} else {
+			Ok(Self::Err)
+		}
+	}
+}
+
+#[cfg(not(feature = "std"))]
+impl FromFFIValue for ResultWithTrap {
+	fn from_ffi_value(arg: u32) -> ResultWithTrap {
+		if arg == 0 {
+			Self::Ok
+		} else {
+			Self::Err
+		}
+	}
+}
