@@ -25,6 +25,8 @@ use crate::{
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
 };
+#[cfg(all(not(feature = "std"), feature = "serde"))]
+use sp_std::alloc::format;
 
 /// Definition of something that the external world might want to say; its
 /// existence implies that it has been checked and is good, particularly with
@@ -71,32 +73,45 @@ where
 		info: &DispatchInfoOf<Self::Call>,
 		len: usize,
 	) -> crate::ApplyExtrinsicResultWithInfo<PostDispatchInfoOf<Self::Call>> {
-		let (maybe_who, maybe_pre) = if let Some((id, extra)) = self.signed {
-			let pre = Extra::pre_dispatch(extra, &id, &self.function, info, len)?;
-			(Some(id), Some(pre))
-		} else {
-			Extra::pre_dispatch_unsigned(&self.function, info, len)?;
-			U::pre_dispatch(&self.function)?;
-			(None, None)
+		let tmp_fn = |info, len| {
+			let (maybe_who, maybe_pre) = if let Some((id, extra)) = self.signed {
+				let pre = Extra::pre_dispatch(extra, &id, &self.function, info, len)
+					.map_err(|err| (err, format!("pre_dispatch(signed) failed: {err:?}")))?;
+				(Some(id), Some(pre))
+			} else {
+				Extra::pre_dispatch_unsigned(&self.function, info, len)
+					.map_err(|err| (err, format!("pre_dispatch_unsigned failed: {err:?}")))?;
+				U::pre_dispatch(&self.function)
+					.map_err(|err| (err, format!("pre_dispatch(unsigned) failed: {err:?}")))?;
+				(None, None)
+			};
+			let res = self.function.dispatch(RuntimeOrigin::from(maybe_who));
+			let post_info = match res {
+				Ok(info) => info,
+				Err(err) => {
+					log::error!(
+						target: "runtime::executive",
+						"CheckedExtrinsic::apply(): dispatch failed",
+					);
+					err.post_info
+				},
+			};
+			Extra::post_dispatch(
+				maybe_pre,
+				info,
+				&post_info,
+				len,
+				&res.map(|_| ()).map_err(|e| e.error),
+			)
+			.map_err(|err| (err, format!("post_dispatch failed: {err:?}")))?;
+			Ok(res)
 		};
-		let res = self.function.dispatch(RuntimeOrigin::from(maybe_who));
-		let post_info = match res {
-			Ok(info) => info,
-			Err(err) => {
-				log::error!(
-					target: "runtime::executive",
-					"CheckedExtrinsic::apply(): ext failed",
-				);
-				err.post_info
-			},
-		};
-		Extra::post_dispatch(
-			maybe_pre,
-			info,
-			&post_info,
-			len,
-			&res.map(|_| ()).map_err(|e| e.error),
-		)?;
-		Ok(res)
+		(tmp_fn)(info, len).map_err(|(err, reason)| {
+			log::error!(
+				target: "runtime::executive",
+				"CheckedExtrinsic::apply(): ext failed: {err:?}, {reason}",
+			);
+			err
+		})
 	}
 }
