@@ -56,10 +56,7 @@ pub fn get_or_else<T: Decode + Sized, F: FnOnce() -> T>(key: &[u8], default_valu
 
 /// Put `value` in storage under `key`.
 pub fn put<T: Encode + ?Sized>(key: &[u8], value: &T) {
-	value.using_encoded(|slice| {
-		// Failure would cause a trap.
-		let _ = sp_io::storage::set_with_limit_check(key, slice);
-	});
+	value.using_encoded(|slice| sp_io::storage::set(key, slice));
 }
 
 /// Remove `key` from storage, returning its value if it had an explicit entry or `None` otherwise.
@@ -178,6 +175,5 @@ pub fn get_raw(key: &[u8]) -> Option<Vec<u8>> {
 /// you should also call `frame_system::RuntimeUpgraded::put(true)` to trigger the
 /// `on_runtime_upgrade` logic.
 pub fn put_raw(key: &[u8], value: &[u8]) {
-	// Failure would cause a trap.
-	let _ = sp_io::storage::set_with_limit_check(key, value);
+	sp_io::storage::set(key, value)
 }

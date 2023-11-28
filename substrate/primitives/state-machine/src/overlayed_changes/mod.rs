@@ -24,7 +24,6 @@ use self::changeset::OverlayedChangeSet;
 use crate::{backend::Backend, stats::StateMachineStats, BackendTransaction, DefaultError};
 use codec::{Decode, Encode};
 use hash_db::Hasher;
-use log::warn;
 pub use offchain::OffchainOverlayedChanges;
 use sp_core::{
 	offchain::OffchainOverlayedChange,
@@ -342,38 +341,6 @@ impl<H: Hasher> OverlayedChanges<H> {
 		let size_write = val.as_ref().map(|x| x.len() as u64).unwrap_or(0);
 		self.stats.tally_write_overlay(size_write);
 		self.top.set(key, val, self.extrinsic_index());
-	}
-
-	/// Set a new value for the specified key, subject to the specified storage limit.
-	///
-	/// Can be rolled back or committed when called inside a transaction.
-	pub fn set_storage_with_limit(
-		&mut self,
-		key: StorageKey,
-		val: Option<StorageValue>,
-		limit: u64,
-	) -> Result<(), ()> {
-		let size_write = val.as_ref().map(|x| x.len() as u64).unwrap_or(0);
-		if size_write > 0 {
-			let mut total = size_write;
-			for (overlayed_key, overlayed_value) in self.changes() {
-				if *overlayed_key != key {
-					total += overlayed_value.value().map_or(0, |v| v.len() as u64);
-				}
-			}
-
-			if total > limit {
-				warn!(
-					target: "state",
-					"Overlay::storage limit exceeded: write = {}, total = {}, limit = {}, depth = {}",
-					size_write, total, limit, self.transaction_depth()
-				);
-				return Err(())
-			}
-		}
-
-		self.set_storage(key, val);
-		Ok(())
 	}
 
 	/// Set a new value for the specified key and child.

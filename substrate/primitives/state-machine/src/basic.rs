@@ -195,20 +195,6 @@ impl Externalities for BasicExternalities {
 		self.overlay.set_storage(key, maybe_value)
 	}
 
-	fn place_storage_with_limit(
-		&mut self,
-		key: StorageKey,
-		maybe_value: Option<StorageValue>,
-	) -> Result<(), ()> {
-		if is_child_storage_key(&key) {
-			warn!(target: "trie", "Refuse to set child storage key via main storage");
-			return Ok(())
-		}
-
-		self.overlay.set_storage(key, maybe_value);
-		Ok(())
-	}
-
 	fn place_child_storage(
 		&mut self,
 		child_info: &ChildInfo,

@@ -112,7 +112,7 @@ use sp_core::bls377;
 use sp_trie::{LayoutV0, LayoutV1, TrieConfiguration};
 
 use sp_runtime_interface::{
-	pass_by::{PassBy, PassByCodec, ResultWithTrap},
+	pass_by::{PassBy, PassByCodec},
 	runtime_interface, Pointer,
 };
 
@@ -193,13 +193,6 @@ pub trait Storage {
 	/// Set `key` to `value` in the storage.
 	fn set(&mut self, key: &[u8], value: &[u8]) {
 		self.set_storage(key.to_vec(), value.to_vec());
-	}
-
-	/// Set `key` to `value` in the storage, subject to the transaction storage
-	/// limit if configured. Returns failure if setting the key exceeds the
-	/// storage limit.
-	fn set_with_limit_check(&mut self, key: &[u8], value: &[u8]) -> ResultWithTrap {
-		self.set_storage_with_limit(key.to_vec(), value.to_vec()).is_ok().into()
 	}
 
 	/// Clear the storage of the given `key` and its value.

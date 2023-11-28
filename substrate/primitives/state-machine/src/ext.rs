@@ -407,41 +407,6 @@ where
 		self.overlay.set_storage(key, value);
 	}
 
-	fn place_storage_with_limit(
-		&mut self,
-		key: StorageKey,
-		value: Option<StorageValue>,
-	) -> Result<(), ()> {
-		let _guard = guard();
-		if is_child_storage_key(&key) {
-			warn!(target: "trie", "Refuse to directly set child storage key");
-			return Ok(())
-		}
-
-		trace!(
-			target: "state",
-			method = "Put_Limit",
-			ext_id = %HexDisplay::from(&self.id.to_le_bytes()),
-			key = %HexDisplay::from(&key),
-			value = ?value.as_ref().map(HexDisplay::from),
-			value_encoded = %HexDisplay::from(
-				&value
-				.as_ref()
-				.map(|v| EncodeOpaqueValue(v.clone()))
-				.encode()
-			),
-			limit = ?self.storage_limit,
-		);
-
-		// NOTE: be careful about touching the key names – used outside substrate!
-		if let Some(limit) = self.storage_limit.as_ref() {
-			self.overlay.set_storage_with_limit(key, value, *limit)
-		} else {
-			self.overlay.set_storage(key, value);
-			Ok(())
-		}
-	}
-
 	fn place_child_storage(
 		&mut self,
 		child_info: &ChildInfo,

@@ -108,13 +108,6 @@ pub trait Externalities: ExtensionStore {
 		self.place_storage(key, Some(value));
 	}
 
-	/// Set storage entry `key` of current contract being called (effective immediately),
-	/// subject to the transaction storage limit if configured. Returns failure if
-	/// setting the key exceeds the storage limit.
-	fn set_storage_with_limit(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<(), ()> {
-		self.place_storage_with_limit(key, Some(value))
-	}
-
 	/// Set child storage entry `key` of current contract being called (effective immediately).
 	fn set_child_storage(&mut self, child_info: &ChildInfo, key: Vec<u8>, value: Vec<u8>) {
 		self.place_child_storage(child_info, key, Some(value))
@@ -194,11 +187,6 @@ pub trait Externalities: ExtensionStore {
 	/// Set or clear a storage entry (`key`) of current contract being called (effective
 	/// immediately).
 	fn place_storage(&mut self, key: Vec<u8>, value: Option<Vec<u8>>);
-
-	/// Set or clear a storage entry (`key`) of current contract being called (effective
-	/// immediately), subject to the transaction storage limit if configured. Returns failure
-	/// if setting the key exceeds the storage limit.
-	fn place_storage_with_limit(&mut self, key: Vec<u8>, value: Option<Vec<u8>>) -> Result<(), ()>;
 
 	/// Set or clear a child storage entry.
 	fn place_child_storage(&mut self, child_info: &ChildInfo, key: Vec<u8>, value: Option<Vec<u8>>);
