@@ -432,90 +432,87 @@ impl<T: Copy + Into<u8> + TryFrom<u8>> RIType for Enum<T> {
 	type FFIType = u32;
 }
 
-/// Result that causes a trap on failure.
-#[derive(Debug)]
-pub enum ResultWithTrap {
-	/// Success
-	Ok,
-
-	/// When host function returns `Err`, this would
-	/// result in a trap in WASM.
-	Err,
+/// `Option<>` that causes a trap when None.
+pub enum OptionWithTrap<T: codec::Codec> {
+	Some(T),
+	None,
 }
 
-impl ResultWithTrap {
-	/// Checks if the result is ok.
-	pub fn is_ok(&self) -> bool {
-		matches!(self, Self::Ok)
-	}
-
-	/// Checks if the result is error.
-	pub fn is_err(&self) -> bool {
-		matches!(self, Self::Err)
-	}
-}
-
-impl From<bool> for ResultWithTrap {
-	fn from(result: bool) -> Self {
-		if result {
-			Self::Ok
-		} else {
-			Self::Err
-		}
-	}
-}
-
-/// `ResultWithTrap` is passed as `u32`.
+/// The type is passed as `u64`.
 ///
-/// - `0`: ResultWithTrap::Ok
-/// - `1`: ResultWithTrap:Err
-impl RIType for ResultWithTrap {
-	type FFIType = u32;
+/// `OptionWithTrap::Some(val)`: the `u64` value is built by `length 32bit << 32 | pointer 32bit`,
+///  where val is encoded and the length and the pointer are taken from the encoded vector.
+/// `OptionWithTrap::None`: set to 0.
+impl<T: codec::Codec> RIType for OptionWithTrap<T> {
+	type FFIType = u64;
 }
 
 #[cfg(feature = "std")]
-impl IntoFFIValue for ResultWithTrap {
-	fn into_ffi_value(self, _: &mut dyn FunctionContext) -> Result<u32> {
+impl<T: codec::Codec> IntoFFIValue for OptionWithTrap<T> {
+	fn into_ffi_value(self, context: &mut dyn FunctionContext) -> Result<Self::FFIType> {
 		match self {
-			Self::Ok => Ok(0),
-			Self::Err => Err("Trap requested".into()),
+			Self::Some(val) => {
+				let vec = val.encode();
+				let ptr = context.allocate_memory(vec.len() as u32)?;
+				context.write_memory(ptr, &vec)?;
+
+				Ok(pack_ptr_and_len(ptr.into(), vec.len() as u32))
+			},
+			Self::None => Err("Trap requested".into()),
 		}
 	}
 }
 
 #[cfg(not(feature = "std"))]
-impl IntoFFIValue for ResultWithTrap {
-	type Owned = ();
+impl<T: codec::Codec> IntoFFIValue for OptionWithTrap<T> {
+	type Owned = Vec<u8>;
 
-	fn into_ffi_value(&self) -> WrappedFFIValue<u32> {
+	fn into_ffi_value(&self) -> WrappedFFIValue<Self::FFIType, Self::Owned> {
 		let ret = match self {
-			Self::Ok => 0,
-			Self::Err => 1,
+			Self::Some(val) => {
+				let data = val.encode();
+				let ffi_value = pack_ptr_and_len(data.as_ptr() as u32, data.len() as u32);
+				(ffi_value, data).into()
+			},
+			Self::None => (pack_ptr_and_len(0, 0), Vec::new()),
 		};
 		ret.into()
 	}
 }
 
 #[cfg(feature = "std")]
-impl FromFFIValue for ResultWithTrap {
-	type SelfInstance = ResultWithTrap;
+impl<T: codec::Codec> FromFFIValue for OptionWithTrap<T> {
+	type SelfInstance = OptionWithTrap<T>;
 
-	fn from_ffi_value(_: &mut dyn FunctionContext, arg: u32) -> Result<ResultWithTrap> {
-		if arg == 0 {
-			Ok(Self::Ok)
+	fn from_ffi_value(
+		context: &mut dyn FunctionContext,
+		arg: Self::FFIType,
+	) -> Result<OptionWithTrap<T>> {
+		let (ptr, len) = unpack_ptr_and_len(arg);
+		if len != 0 {
+			let vec = context.read_memory(Pointer::new(ptr), len)?;
+			let val = T::decode(&mut &vec[..])
+				.map_err(|e| format!("Could not decode value from wasm: {}", e))?;
+			Ok(Self::Some(val))
 		} else {
-			Ok(Self::Err)
+			Ok(Self::None)
 		}
 	}
 }
 
 #[cfg(not(feature = "std"))]
-impl FromFFIValue for ResultWithTrap {
-	fn from_ffi_value(arg: u32) -> ResultWithTrap {
-		if arg == 0 {
-			Self::Ok
+impl<T: codec::Codec> FromFFIValue for OptionWithTrap<T> {
+	fn from_ffi_value(arg: Self::FFIType) -> OptionWithTrap<T> {
+		let (ptr, len) = unpack_ptr_and_len(arg);
+		let len = len as usize;
+		if len != 0 {
+			let encoded =
+				bytes::Bytes::from(unsafe { Vec::from_raw_parts(ptr as *mut u8, len, len) });
+			let val = codec::decode_from_bytes(encoded)
+				.expect("Host to wasm values are encoded correctly; qed");
+			Self::Some(val)
 		} else {
-			Self::Err
+			Self::None
 		}
 	}
 }
