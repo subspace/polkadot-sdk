@@ -86,6 +86,9 @@ pub trait Externalities: ExtensionStore {
 	/// Read runtime storage.
 	fn storage(&self, key: &[u8]) -> Option<Vec<u8>>;
 
+	/// Read runtime storage with limit enforced.
+	fn storage_with_limit(&self, key: &[u8]) -> Result<Option<Vec<u8>>, ()>;
+
 	/// Get storage value hash.
 	///
 	/// This may be optimized for large values.

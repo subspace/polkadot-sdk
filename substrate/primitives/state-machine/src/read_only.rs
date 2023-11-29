@@ -94,6 +94,10 @@ where
 			.expect("Backed failed for storage in ReadOnlyExternalities")
 	}
 
+	fn storage_with_limit(&self, key: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+		Ok(self.storage(key))
+	}
+
 	fn storage_hash(&self, key: &[u8]) -> Option<Vec<u8>> {
 		self.backend
 			.storage_hash(key)

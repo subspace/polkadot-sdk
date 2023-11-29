@@ -164,6 +164,10 @@ impl Externalities for BasicExternalities {
 		self.overlay.storage(key).and_then(|v| v.map(|v| v.to_vec()))
 	}
 
+	fn storage_with_limit(&self, key: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+		Ok(self.storage(key))
+	}
+
 	fn storage_hash(&self, key: &[u8]) -> Option<Vec<u8>> {
 		self.storage(key).map(|v| Blake2Hasher::hash(&v).encode())
 	}

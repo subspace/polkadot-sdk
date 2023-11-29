@@ -211,6 +211,10 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("storage: unsupported feature for parachain validation")
 	}
 
+	fn storage_with_limit(&self, _: &[u8]) -> Result<Option<Vec<u8>>, ()> {
+		panic!("storage_hash: unsupported feature for parachain validation")
+	}
+
 	fn storage_hash(&self, _: &[u8]) -> Option<Vec<u8>> {
 		panic!("storage_hash: unsupported feature for parachain validation")
 	}

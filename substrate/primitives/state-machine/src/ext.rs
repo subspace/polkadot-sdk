@@ -42,6 +42,17 @@ use sp_std::{
 #[cfg(feature = "std")]
 use std::error;
 
+#[cfg(feature = "std")]
+type Lock<T> = parking_lot::Mutex<T>;
+
+#[cfg(not(feature = "std"))]
+type Lock<T> = core::cell::RefCell<T>;
+
+#[cfg(not(feature = "std"))]
+use sp_std::collections::btree_set::BTreeSet as Set;
+#[cfg(feature = "std")]
+use std::collections::BTreeSet as Set;
+
 const EXT_NOT_ALLOWED_TO_FAIL: &str = "Externalities not allowed to fail within runtime";
 const BENCHMARKING_FN: &str = "\
 	This is a special fn only for benchmarking where a database commit happens from the runtime.
@@ -90,6 +101,60 @@ impl<B: error::Error, E: error::Error> error::Error for Error<B, E> {
 	}
 }
 
+/// Tracks the state of the storage limiting.
+struct StorageLimitState {
+	/// The storage limit to enforce.
+	limit: u64,
+
+	/// The keys that were not found in the overlay, but found in the backend.
+	overlay_missed_keys: Set<Vec<u8>>,
+
+	/// The overlay misses so far(bytes).
+	overlay_misses: u64,
+}
+
+impl StorageLimitState {
+	/// Creates the StorageLimitState
+	fn new(limit: u64) -> Self {
+		Self { limit, overlay_missed_keys: Set::new(), overlay_misses: 0 }
+	}
+
+	/// Checks if the limit is exceeded. Updates the state if limit is not exceeded.
+	fn apply_limit(
+		&mut self,
+		key: &[u8],
+		value: Option<StorageValue>,
+	) -> Result<Option<StorageValue>, ()> {
+		let len = match &value {
+			Some(val) => val.len(),
+			None => return Ok(value),
+		};
+
+		if self.overlay_missed_keys.contains(key) {
+			// Ony the first overlay miss is counted.
+			return Ok(value)
+		}
+
+		let updated = self.overlay_misses + (len as u64);
+		if updated > self.limit {
+			log::warn!(
+				target: "wasmtime-debug",
+				"Overlay miss: limit exceeded: current = {}/{}, len = {}, limit = {}",
+				self.overlay_misses, self.overlay_missed_keys.len(), len, self.limit);
+			// Limit exceeded
+			Err(())
+		} else {
+			self.overlay_missed_keys.insert(key.to_vec());
+			self.overlay_misses = updated;
+			log::debug!(
+				target: "wasmtime-debug",
+				"Overlay miss: current = {}/{}, len = {}, limit = {}",
+				self.overlay_misses, self.overlay_missed_keys.len(), len, self.limit);
+			Ok(value)
+		}
+	}
+}
+
 /// Wraps a read-only backend, call executor, and current overlayed changes.
 pub struct Ext<'a, H, B>
 where
@@ -105,8 +170,8 @@ where
 	/// Extensions registered with this instance.
 	#[cfg(feature = "std")]
 	extensions: Option<OverlayedExtensions<'a>>,
-	/// Storage limit for the extrinsic execution.
-	storage_limit: Option<u64>,
+	/// Storage limiting state.
+	storage_limit_state: Option<Lock<StorageLimitState>>,
 }
 
 impl<'a, H, B> Ext<'a, H, B>
@@ -117,7 +182,7 @@ where
 	/// Create a new `Ext`.
 	#[cfg(not(feature = "std"))]
 	pub fn new(overlay: &'a mut OverlayedChanges<H>, backend: &'a B) -> Self {
-		Ext { overlay, backend, id: 0, storage_limit: None }
+		Ext { overlay, backend, id: 0, storage_limit_state: None }
 	}
 
 	/// Create a new `Ext` from overlayed changes and read-only backend
@@ -132,13 +197,20 @@ where
 			backend,
 			id: rand::random(),
 			extensions: extensions.map(OverlayedExtensions::new),
-			storage_limit: None,
+			storage_limit_state: None,
 		}
 	}
 
 	/// Sets the storage limit for extrinsic execution.
 	pub fn set_storage_limit(&mut self, storage_limit: Option<u64>) {
-		self.storage_limit = storage_limit;
+		match storage_limit {
+			Some(limit) => {
+				self.storage_limit_state = Some(Lock::new(StorageLimitState::new(limit)));
+			},
+			None => {
+				self.storage_limit_state = None;
+			},
+		}
 	}
 }
 
@@ -196,6 +268,45 @@ where
 					.map(|v| EncodeOpaqueValue(v.clone()))
 					.encode()
 			),
+		);
+
+		result
+	}
+
+	fn storage_with_limit(&self, key: &[u8]) -> Result<Option<StorageValue>, ()> {
+		let storage_limit_state = match self.storage_limit_state.as_ref() {
+			Some(state) => state,
+			None => return Ok(self.storage(key)),
+		};
+
+		let _guard = guard();
+		let overlay_value = self.overlay.storage(key).map(|x| x.map(|x| x.to_vec()));
+		let result = match overlay_value {
+			Some(value) => Ok(value),
+			None => {
+				// Overlay miss, look up the backend and enforce the limit.
+				let backend_value = self.backend.storage(key).expect(EXT_NOT_ALLOWED_TO_FAIL);
+				#[cfg(feature = "std")]
+				let state = &mut *storage_limit_state.lock();
+				#[cfg(not(feature = "std"))]
+				let state = &mut *storage_limit_state.borrow_mut();
+				state.apply_limit(key, backend_value)
+			},
+		};
+
+		let result_encoded = if let Ok(v) = result.as_ref() {
+			v.as_ref().map(|v| EncodeOpaqueValue(v.clone())).encode()
+		} else {
+			Default::default()
+		};
+		// NOTE: be careful about touching the key names – used outside substrate!
+		trace!(
+			target: "wasmtime-debug",
+			method = "Get_Limit",
+			ext_id = %HexDisplay::from(&self.id.to_le_bytes()),
+			key = %HexDisplay::from(&key),
+			result = ?result.as_ref().map(|val| val.as_ref().map(HexDisplay::from)),
+			result_encoded = %HexDisplay::from(&result_encoded),
 		);
 
 		result

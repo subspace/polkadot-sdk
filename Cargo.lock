@@ -5335,6 +5335,7 @@ dependencies = [
  "sp-io",
  "sp-metadata-ir",
  "sp-runtime",
+ "sp-runtime-interface",
  "sp-staking",
  "sp-state-machine",
  "sp-std",

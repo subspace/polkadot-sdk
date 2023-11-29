@@ -112,7 +112,7 @@ use sp_core::bls377;
 use sp_trie::{LayoutV0, LayoutV1, TrieConfiguration};
 
 use sp_runtime_interface::{
-	pass_by::{PassBy, PassByCodec},
+	pass_by::{OptionWithTrap, PassBy, PassByCodec},
 	runtime_interface, Pointer,
 };
 
@@ -173,6 +173,18 @@ pub trait Storage {
 	/// Returns the data for `key` in the storage or `None` if the key can not be found.
 	fn get(&self, key: &[u8]) -> Option<bytes::Bytes> {
 		self.storage(key).map(|s| bytes::Bytes::from(s.to_vec()))
+	}
+
+	/// Similar to `get()`, but enforces a limit (if configured) on the storage
+	/// read during the extrinsic execution.
+	/// Returns OptionWithTrap::Some(get()) if within limits, OptionWithTrap::None
+	/// if limit exceeded.
+	fn get_with_limit_check(&self, key: &[u8]) -> OptionWithTrap<Option<bytes::Bytes>> {
+		if let Ok(maybe_val) = self.storage_with_limit(key) {
+			OptionWithTrap::Some(maybe_val.map(|s| bytes::Bytes::from(s.to_vec())))
+		} else {
+			OptionWithTrap::None
+		}
 	}
 
 	/// Get `key` from storage, placing the value into `value_out` and return the number of

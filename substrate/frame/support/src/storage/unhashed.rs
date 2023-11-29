@@ -18,11 +18,18 @@
 //! Operation on unhashed runtime storage.
 
 use codec::{Decode, Encode};
+use sp_runtime_interface::pass_by::OptionWithTrap;
 use sp_std::prelude::*;
 
 /// Return the value of the item in storage under `key`, or `None` if there is no explicit entry.
 pub fn get<T: Decode + Sized>(key: &[u8]) -> Option<T> {
-	sp_io::storage::get(key).and_then(|val| {
+	let value = match sp_io::storage::get_with_limit_check(key) {
+		OptionWithTrap::Some(value) => value,
+		OptionWithTrap::None => {
+			unreachable!("Trap should have been raised for OptionWithTrap::None");
+		},
+	};
+	value.and_then(|val| {
 		Decode::decode(&mut &val[..]).map(Some).unwrap_or_else(|e| {
 			// TODO #3700: error should be handleable.
 			log::error!(
@@ -166,7 +173,12 @@ pub fn contains_prefixed_key(prefix: &[u8]) -> bool {
 
 /// Get a Vec of bytes from storage.
 pub fn get_raw(key: &[u8]) -> Option<Vec<u8>> {
-	sp_io::storage::get(key).map(|value| value.to_vec())
+	match sp_io::storage::get_with_limit_check(key) {
+		OptionWithTrap::Some(value) => value.map(|value| value.to_vec()),
+		OptionWithTrap::None => {
+			unreachable!("Trap should have been raised for OptionWithTrap::None");
+		},
+	}
 }
 
 /// Put a raw byte slice into storage.
