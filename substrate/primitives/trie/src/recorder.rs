@@ -105,14 +105,13 @@ impl<H: Hasher> Clone for Recorder<H> {
 }
 
 impl<H: Hasher> Recorder<H> {
-	/// Keys for which we have recorded the trie nodes till now.
-	/// Note that this does not modify the internals, rather returns snapshot of the recorded keys.
-	/// There can be multiple storage root in case we are tracking more than one tries.
+	/// Returns [`RecordedForKey`] per recorded key per trie.
+	///
+	/// There are multiple tries when working with e.g. child tries.
 	pub fn recorded_keys(&self) -> HashMap<<H as Hasher>::Out, HashMap<Arc<[u8]>, RecordedForKey>> {
 		let inner = self.inner.lock();
 		inner.recorded_keys.clone()
 	}
-
 
 	/// Returns the recorder as [`TrieRecorder`](trie_db::TrieRecorder) compatible type.
 	///
