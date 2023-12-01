@@ -109,8 +109,7 @@ impl<H: Hasher> Recorder<H> {
 	///
 	/// There are multiple tries when working with e.g. child tries.
 	pub fn recorded_keys(&self) -> HashMap<<H as Hasher>::Out, HashMap<Arc<[u8]>, RecordedForKey>> {
-		let inner = self.inner.lock();
-		inner.recorded_keys.clone()
+		self.inner.lock().recorded_keys.clone()
 	}
 
 	/// Returns the recorder as [`TrieRecorder`](trie_db::TrieRecorder) compatible type.
