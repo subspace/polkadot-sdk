@@ -444,6 +444,7 @@ impl<H: Hasher> OverlayedChanges<H> {
 	/// Any changes made during that transaction are discarded. Returns an error if
 	/// there is no open transaction that can be rolled back.
 	pub fn rollback_transaction(&mut self) -> Result<(), NoOpenTransaction> {
+		log::warn!(target: "wasmtime-debug", "OverlayedChanges::::rollback_transaction()");
 		self.mark_dirty();
 
 		self.top.rollback_transaction()?;

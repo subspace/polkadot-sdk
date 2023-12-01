@@ -173,6 +173,12 @@ impl WasmtimeInstance {
 		data: &[u8],
 		allocation_stats: &mut Option<AllocationStats>,
 	) -> Result<Vec<u8>> {
+		let should_log = if let InvokeMethod::Export(method) = &method {
+			method.ends_with("apply_extrinsic")
+		} else {
+			false
+		};
+
 		match &mut self.strategy {
 			Strategy::LegacyInstanceReuse {
 				ref mut instance_wrapper,
@@ -193,7 +199,7 @@ impl WasmtimeInstance {
 				let allocator = FreeingBumpHeapAllocator::new(*heap_base);
 
 				let result =
-					perform_call(data, instance_wrapper, entrypoint, allocator, allocation_stats);
+					perform_call(data, instance_wrapper, entrypoint, allocator, allocation_stats, should_log);
 
 				// Signal to the OS that we are done with the linear memory and that it can be
 				// reclaimed.
@@ -207,7 +213,7 @@ impl WasmtimeInstance {
 				let entrypoint = instance_wrapper.resolve_entrypoint(method)?;
 
 				let allocator = FreeingBumpHeapAllocator::new(heap_base);
-				perform_call(data, &mut instance_wrapper, entrypoint, allocator, allocation_stats)
+				perform_call(data, &mut instance_wrapper, entrypoint, allocator, allocation_stats, should_log)
 			},
 		}
 	}
@@ -772,7 +778,11 @@ fn perform_call(
 	entrypoint: EntryPoint,
 	mut allocator: FreeingBumpHeapAllocator,
 	allocation_stats: &mut Option<AllocationStats>,
+	should_log: bool,
 ) -> Result<Vec<u8>> {
+	if should_log {
+		log::info!("executor::perform_call(): in");
+	}
 	let (data_ptr, data_len) = inject_input_data(instance_wrapper, &mut allocator, data)?;
 
 	let host_state = HostState::new(allocator);
@@ -793,6 +803,9 @@ fn perform_call(
 	let (output_ptr, output_len) = ret?;
 	let output = extract_output_data(instance_wrapper, output_ptr, output_len)?;
 
+	if should_log {
+		log::info!("executor::perform_call(): out");
+	}
 	Ok(output)
 }
 

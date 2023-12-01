@@ -121,6 +121,9 @@ where
 			res
 		},
 		TransactionOutcome::Rollback(res) => {
+			log::warn!(
+				"with_transaction(): rollback"
+			);
 			rollback_transaction();
 			res
 		},
@@ -158,6 +161,9 @@ where
 			res
 		},
 		TransactionOutcome::Rollback(res) => {
+			log::warn!(
+				"with_transaction_unchecked(): rollback"
+			);
 			rollback_transaction();
 			res
 		},
@@ -179,6 +185,9 @@ where
 		if r.is_ok() {
 			TransactionOutcome::Commit(r)
 		} else {
+			log::warn!(
+				"with_storage_layer(): rollback"
+			);
 			TransactionOutcome::Rollback(r)
 		}
 	})

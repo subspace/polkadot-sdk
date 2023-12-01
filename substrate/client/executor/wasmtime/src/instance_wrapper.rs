@@ -62,13 +62,20 @@ impl EntryPoint {
 		let data_ptr = u32::from(data_ptr);
 		let data_len = u32::from(data_len);
 
-		match self.call_type {
+		let ret = match self.call_type {
 			EntryPointType::Direct { ref entrypoint } =>
 				entrypoint.call(&mut *store, (data_ptr, data_len)),
 			EntryPointType::Wrapped { func, ref dispatcher } =>
 				dispatcher.call(&mut *store, (func, data_ptr, data_len)),
+		};
+		if let Err(err) = &ret {
+			log::error!(
+				target: "wasmtime-debug",
+				"EntryPoint::call(): execution failed: {err:?}",
+			);
 		}
-		.map_err(|trap| {
+
+		ret.map_err(|trap| {
 			let host_state = store
 				.data_mut()
 				.host_state

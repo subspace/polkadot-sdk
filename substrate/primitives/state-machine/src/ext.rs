@@ -704,7 +704,9 @@ where
 	}
 
 	fn storage_rollback_transaction(&mut self) -> Result<(), ()> {
-		self.overlay.rollback_transaction().map_err(|_| ())
+		let ret = self.overlay.rollback_transaction().map_err(|_| ());
+		log::warn!(target: "wasmtime-debug", "ext::storage_rollback_transaction(): ret = {:?}", ret);
+		ret
 	}
 
 	fn storage_commit_transaction(&mut self) -> Result<(), ()> {

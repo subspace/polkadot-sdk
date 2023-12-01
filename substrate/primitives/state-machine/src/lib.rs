@@ -282,14 +282,15 @@ mod execution {
 
 			let ext_id = ext.id;
 
-			trace!(
-				target: "state",
-				ext_id = %HexDisplay::from(&ext_id.to_le_bytes()),
-				method = %self.method,
-				parent_hash = %self.parent_hash.map(|h| format!("{:?}", h)).unwrap_or_else(|| String::from("None")),
-				input = ?HexDisplay::from(&self.call_data),
-				"Call",
-			);
+			if self.method.ends_with("apply_extrinsic") {
+				trace!(
+					target: "wasmtime-debug",
+					ext_id = %HexDisplay::from(&ext_id.to_le_bytes()),
+					method = %self.method,
+					parent_hash = %self.parent_hash.map(|h| format!("{:?}", h)).unwrap_or_else(|| String::from("None")),
+					"Call",
+				);
+			}
 
 			let result = self
 				.exec
@@ -300,12 +301,22 @@ mod execution {
 				.exit_runtime()
 				.expect("Runtime is not able to call this function in the overlay; qed");
 
-			trace!(
-				target: "state",
-				ext_id = %HexDisplay::from(&ext_id.to_le_bytes()),
-				?result,
-				"Return",
-			);
+			if self.method.ends_with("apply_extrinsic") {
+				if result.is_ok() {
+					trace!(
+						target: "wasmtime-debug",
+						ext_id = %HexDisplay::from(&ext_id.to_le_bytes()),
+						"Return",
+					);
+				} else {
+					trace!(
+						target: "wasmtime-debug",
+						ext_id = %HexDisplay::from(&ext_id.to_le_bytes()),
+						?result,
+						"Return(Failure)",
+					);
+				}
+			}
 
 			result.map_err(|e| Box::new(e) as Box<_>)
 		}
