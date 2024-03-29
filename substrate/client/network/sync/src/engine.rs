@@ -839,6 +839,9 @@ where
 			ToServiceCommand::SetSyncForkRequest(peers, hash, number) => {
 				self.strategy.set_sync_fork_request(peers, &hash, number);
 			},
+			ToServiceCommand::NewBestBlockNumber(number) => {
+				self.strategy.update_common_number_for_peers(number);
+			},
 			ToServiceCommand::EventStream(tx) => self.event_streams.push(tx),
 			ToServiceCommand::RequestJustification(hash, number) =>
 				self.strategy.request_justification(&hash, number),

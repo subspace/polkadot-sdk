@@ -200,6 +200,15 @@ where
 		}
 	}
 
+	pub fn update_common_number_for_peers(&mut self, number: NumberFor<B>) {
+		match self {
+			SyncingStrategy::WarpSyncStrategy(_) => {},
+			SyncingStrategy::StateSyncStrategy(_) => {},
+			SyncingStrategy::ChainSyncStrategy(strategy) =>
+				strategy.update_common_number_for_peers(number),
+		}
+	}
+
 	/// Request extra justification.
 	pub fn request_justification(&mut self, hash: &B::Hash, number: NumberFor<B>) {
 		match self {
