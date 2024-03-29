@@ -462,15 +462,17 @@ impl<BlockHash: Hash, Key: Hash, D: MetaDb> StateDbSync<BlockHash, Key, D> {
 		match self.mode {
 			PruningMode::ArchiveAll => Ok(()),
 			PruningMode::ArchiveCanonical | PruningMode::Constrained(_) => {
+				let hint_value = hint();
 				let have_block = self.non_canonical.have_block(hash) ||
 					self.pruning.as_ref().map_or_else(
-						|| hint(),
+						|| hint_value,
 						|pruning| match pruning.have_block(hash, number) {
 							HaveBlock::No => false,
 							HaveBlock::Yes => true,
 							HaveBlock::Maybe => hint(),
 						},
 					);
+			//	println!("have_block = {have_block} #{number} {hash:?}");
 				if have_block {
 					let refs = self.pinned.entry(hash.clone()).or_default();
 					if *refs == 0 {

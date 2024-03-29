@@ -2512,18 +2512,26 @@ impl<Block: BlockT> sc_client_api::backend::Backend<Block> for Backend<Block> {
 	fn pin_block(&self, hash: <Block as BlockT>::Hash) -> sp_blockchain::Result<()> {
 		let hint = || {
 			let header_metadata = self.blockchain.header_metadata(hash);
+			println!("pin_block {hash:?}: header_metadata: {:?}", header_metadata);
 			header_metadata
 				.map(|hdr| {
-					sc_state_db::NodeDb::get(self.storage.as_ref(), hdr.state_root.as_ref())
-						.unwrap_or(None)
+					let result = sc_state_db::NodeDb::get(self.storage.as_ref(), hdr.state_root.as_ref());
+					match result {
+						Ok(_) => {println!("sc_state_db::NodeDb::get {hash:?}: result: OK",);}
+						Err(ref err) => {println!("sc_state_db::NodeDb::get {hash:?}: result: {err:?}");}
+					};
+
+					result.unwrap_or(None)
 						.is_some()
 				})
 				.unwrap_or(false)
 		};
 
 		if let Some(number) = self.blockchain.number(hash)? {
+			println!("self.blockchain.number #{number} {hash:?}");
 			self.storage.state_db.pin(&hash, number.saturated_into::<u64>(), hint).map_err(
-				|_| {
+				|err| {
+					println!("storage.state_db.pin #{number }{hash:?} {err:?}");
 					sp_blockchain::Error::UnknownBlock(format!(
 						"State already discarded for `{:?}`",
 						hash

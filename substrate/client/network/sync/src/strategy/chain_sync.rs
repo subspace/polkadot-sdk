@@ -703,6 +703,7 @@ where
 		request: Option<BlockRequest<B>>,
 		response: BlockResponse<B>,
 	) -> Result<(), BadPeer> {
+		println!("Block response (len) peer_id={peer_id}: {}", response.blocks.len());
 		self.downloaded_blocks += response.blocks.len();
 		let mut gap = false;
 		let new_blocks: Vec<IncomingBlock<B>> = if let Some(peer) = self.peers.get_mut(peer_id) {
@@ -714,7 +715,8 @@ where
 			self.allowed_requests.add(peer_id);
 			if let Some(request) = request {
 				match &mut peer.state {
-					PeerSyncState::DownloadingNew(_) => {
+					PeerSyncState::DownloadingNew(num) => {
+						println!("PeerSyncState::DownloadingNew peer_id={peer_id}: {}", num);
 						self.blocks.clear_peer_download(peer_id);
 						peer.state = PeerSyncState::Available;
 						if let Some(start_block) =
@@ -724,7 +726,8 @@ where
 						}
 						self.ready_blocks()
 					},
-					PeerSyncState::DownloadingGap(_) => {
+					PeerSyncState::DownloadingGap(num) => {
+						println!("PeerSyncState::DownloadingGap peer_id={peer_id}: {}", num);
 						peer.state = PeerSyncState::Available;
 						if let Some(gap_sync) = &mut self.gap_sync {
 							gap_sync.blocks.clear_peer_download(peer_id);
@@ -759,7 +762,7 @@ where
 									}
 								})
 								.collect();
-							debug!(
+							info!(
 								target: LOG_TARGET,
 								"Drained {} gap blocks from {}",
 								blocks.len(),
@@ -767,11 +770,12 @@ where
 							);
 							blocks
 						} else {
-							debug!(target: LOG_TARGET, "Unexpected gap block response from {peer_id}");
+							info!(target: LOG_TARGET, "Unexpected gap block response from {peer_id}");
 							return Err(BadPeer(*peer_id, rep::NO_BLOCK))
 						}
 					},
-					PeerSyncState::DownloadingStale(_) => {
+					PeerSyncState::DownloadingStale(num) => {
+						println!("PeerSyncState::DownloadingStale peer_id={peer_id}: {}", num);
 						peer.state = PeerSyncState::Available;
 						if blocks.is_empty() {
 							debug!(target: LOG_TARGET, "Empty block response from {peer_id}");
@@ -800,6 +804,7 @@ where
 							.collect()
 					},
 					PeerSyncState::AncestorSearch { current, start, state } => {
+						println!("PeerSyncState::AncestorSearch peer_id={peer_id}: {}, {}", current, start);
 						let matching_hash = match (blocks.get(0), self.client.hash(*current)) {
 							(Some(block), Ok(maybe_our_block_hash)) => {
 								trace!(
@@ -1034,7 +1039,7 @@ where
 				let median = heads[heads.len() / 2];
 				if number + STATE_SYNC_FINALITY_THRESHOLD.saturated_into() >= median {
 					if let Ok(Some(header)) = self.client.header(*hash) {
-						log::debug!(
+						log::info!(
 							target: LOG_TARGET,
 							"Starting state sync for #{number} ({hash})",
 						);
@@ -1345,7 +1350,7 @@ where
 			warn!(target: LOG_TARGET, "💔  Unable to restart sync: {e}");
 		}
 		self.allowed_requests.set_all();
-		debug!(
+		info!(
 			target: LOG_TARGET,
 			"Restarted with {} ({})",
 			self.best_queued_number,
@@ -1358,7 +1363,7 @@ where
 			// should be kept in that state.
 			if let PeerSyncState::DownloadingJustification(_) = p.state {
 				// We make sure our commmon number is at least something we have.
-				trace!(
+				info!(
 					target: LOG_TARGET,
 					"Keeping peer {} after restart, updating common number from={} => to={} (our best).",
 					peer_id,
@@ -1407,25 +1412,25 @@ where
 			self.import_existing = true;
 			// Latest state is missing, start with the last finalized state or genesis instead.
 			if let Some((hash, number)) = info.finalized_state {
-				debug!(target: LOG_TARGET, "Starting from finalized state #{number}");
+				info!(target: LOG_TARGET, "Starting from finalized state #{number}");
 				self.best_queued_hash = hash;
 				self.best_queued_number = number;
 			} else {
-				debug!(target: LOG_TARGET, "Restarting from genesis");
+				info!(target: LOG_TARGET, "Restarting from genesis");
 				self.best_queued_hash = Default::default();
 				self.best_queued_number = Zero::zero();
 			}
 		}
 
 		if let Some((start, end)) = info.block_gap {
-			debug!(target: LOG_TARGET, "Starting gap sync #{start} - #{end}");
+			info!(target: LOG_TARGET, "Starting gap sync #{start} - #{end}");
 			self.gap_sync = Some(GapSync {
 				best_queued_number: start - One::one(),
 				target: end,
 				blocks: BlockCollection::new(),
 			});
 		}
-		trace!(
+		info!(
 			target: LOG_TARGET,
 			"Restarted sync at #{} ({:?})",
 			self.best_queued_number,
@@ -1780,7 +1785,7 @@ where
 		count: usize,
 		results: Vec<(Result<BlockImportStatus<NumberFor<B>>, BlockImportError>, B::Hash)>,
 	) {
-		trace!(target: LOG_TARGET, "Imported {imported} of {count}");
+		info!(target: LOG_TARGET, "Imported {imported} of {count}");
 
 		let mut has_error = false;
 		for (_, hash) in &results {
@@ -1798,13 +1803,15 @@ where
 			has_error |= result.is_err();
 
 			match result {
-				Ok(BlockImportStatus::ImportedKnown(number, peer_id)) =>
+				Ok(BlockImportStatus::ImportedKnown(number, peer_id)) => {
+					info!("ImportedKnown:{number}");
 					if let Some(peer) = peer_id {
 						self.update_peer_common_number(&peer, number);
-					},
+					}
+				},
 				Ok(BlockImportStatus::ImportedUnknown(number, aux, peer_id)) => {
 					if aux.clear_justification_requests {
-						trace!(
+						info!(
 							target: LOG_TARGET,
 							"Block imported clears all pending justification requests {number}: {hash:?}",
 						);
@@ -1812,7 +1819,7 @@ where
 					}
 
 					if aux.needs_justification {
-						trace!(
+						info!(
 							target: LOG_TARGET,
 							"Block imported but requires justification {number}: {hash:?}",
 						);

@@ -1230,6 +1230,7 @@ where
 
 		match Self::encode_state_request(&request) {
 			Ok(data) => {
+				println!("Preparing state request: {}, peer_id={peer_id}", data.len());
 				self.network_service.start_request(
 					peer_id,
 					self.state_request_protocol_name.clone(),
@@ -1286,6 +1287,7 @@ where
 	}
 
 	fn decode_state_response(response: &[u8]) -> Result<OpaqueStateResponse, String> {
+		println!("decode_state_response: {}", response.len());
 		let response = StateResponse::decode(response)
 			.map_err(|error| format!("Failed to decode state response: {error}"))?;
 
