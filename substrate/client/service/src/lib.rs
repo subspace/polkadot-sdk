@@ -48,7 +48,7 @@ use sc_network_sync::SyncingService;
 use sc_utils::mpsc::TracingUnboundedReceiver;
 use sp_blockchain::HeaderMetadata;
 use sp_consensus::SyncOracle;
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
+use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 
 pub use self::{
 	builder::{
@@ -86,6 +86,7 @@ pub use sc_rpc::{
 pub use sc_tracing::TracingReceiver;
 pub use sc_transaction_pool::Options as TransactionPoolOptions;
 pub use sc_transaction_pool_api::{error::IntoPoolError, InPoolTransaction, TransactionPool};
+use sp_runtime::Justifications;
 #[doc(hidden)]
 pub use std::{ops::Deref, result::Result, sync::Arc};
 pub use task_manager::{SpawnTaskHandle, Task, TaskManager, TaskRegistry, DEFAULT_GROUP_NAME};
@@ -95,6 +96,29 @@ const DEFAULT_PROTOCOL_ID: &str = "sup";
 /// RPC handlers that can perform RPC queries.
 #[derive(Clone)]
 pub struct RpcHandlers(Arc<RpcModule<()>>);
+
+#[derive(Clone, Debug)]
+/// Data container to insert the block into the BlockchainDb without checks.
+pub struct RawBlockData<Block: BlockT> {
+	/// Block hash
+	pub hash: Block::Hash,
+	/// Block header
+	pub header: Block::Header,
+	/// Extrinsics of the block
+	pub block_body: Option<Vec<Block::Extrinsic>>,
+	/// Justifications of the block
+	pub justifications: Option<Justifications>,
+}
+
+/// Provides extended functions for `Client` to enable fast-sync.
+pub trait ClientExt<Block: BlockT> {
+	/// Insert block into BlockchainDb bypassing checks.
+	fn import_raw_block(&self, raw_block: RawBlockData<Block>) -> Result<(), sp_blockchain::Error>;
+	/// Clear block gap after initial block insertion.
+	fn clear_block_gap(&self);
+	/// Update block gap to specific value.
+	fn update_block_gap(&self, start: NumberFor<Block>, end: NumberFor<Block>);
+}
 
 impl RpcHandlers {
 	/// Starts an RPC query.

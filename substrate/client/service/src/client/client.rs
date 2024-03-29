@@ -20,7 +20,7 @@
 
 use super::block_rules::{BlockRules, LookupResult as BlockLookupResult};
 use futures::{FutureExt, StreamExt};
-use log::{error, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use parking_lot::{Mutex, RwLock};
 use prometheus_endpoint::Registry;
 use rand::Rng;
@@ -55,6 +55,7 @@ use sp_blockchain::{
 };
 use sp_consensus::{BlockOrigin, BlockStatus, Error as ConsensusError};
 
+use codec::Encode;
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedSender};
 use sp_core::{
 	storage::{
@@ -85,6 +86,7 @@ use std::{
 	sync::Arc,
 };
 
+use crate::{ClientExt, RawBlockData};
 #[cfg(feature = "test-helpers")]
 use {
 	super::call_executor::LocalCallExecutor, sc_client_api::in_mem, sp_core::traits::CodeExecutor,
@@ -116,6 +118,77 @@ where
 	telemetry: Option<TelemetryHandle>,
 	unpin_worker_sender: TracingUnboundedSender<Block::Hash>,
 	_phantom: PhantomData<RA>,
+}
+
+pub type BlockWeight = u128;
+
+//TODO: make function from the caller
+/// Write the cumulative chain-weight of a block ot aux storage.
+pub(crate) fn write_block_weight<H: Encode, F, R>(
+	block_hash: H,
+	block_weight: BlockWeight,
+	write_aux: F,
+) -> R
+where
+	F: FnOnce(&[(Vec<u8>, &[u8])]) -> R,
+{
+	let key = block_weight_key(block_hash);
+	block_weight.using_encoded(|s| write_aux(&[(key, s)]))
+}
+
+/// The aux storage key used to store the block weight of the given block hash.
+pub fn block_weight_key<H: Encode>(block_hash: H) -> Vec<u8> {
+	(b"block_weight", block_hash).encode()
+}
+
+impl<B, E, Block, RA> ClientExt<Block> for Client<B, E, Block, RA>
+where
+	B: backend::Backend<Block>,
+	E: CallExecutor<Block> + Send + Sync,
+	Block: BlockT,
+	Client<B, E, Block, RA>: ProvideRuntimeApi<Block>,
+	<Client<B, E, Block, RA> as ProvideRuntimeApi<Block>>::Api: CoreApi<Block> + ApiExt<Block>,
+	RA: Sync + Send,
+{
+	fn import_raw_block(&self, raw_block: RawBlockData<Block>) -> Result<(), Error> {
+		let hash = raw_block.hash;
+		let number = *raw_block.header.number();
+		debug!("Importing raw block: {number:?}  - {hash:?} "); // TODO: debug
+
+		let mut import_block = BlockImportParams::new(BlockOrigin::FastSync, raw_block.header);
+		import_block.justifications = raw_block.justifications;
+		import_block.body = raw_block.block_body;
+		import_block.state_action = StateAction::Skip;
+		import_block.finalized = true;
+		import_block.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+		import_block.import_existing = false;
+
+		// Set zero block weight to allow the execution of the following blocks.
+		write_block_weight(hash, 0, |values| {
+			import_block
+				.auxiliary
+				.extend(values.iter().map(|(k, v)| (k.to_vec(), Some(v.to_vec()))))
+		});
+
+		let result = self
+			.lock_import_and_run(|operation| self.apply_block(operation, import_block, None))
+			.map_err(|e| {
+				error!("Error during importing of the raw block: {}", e);
+				ConsensusError::ClientImport(e.to_string())
+			})?;
+
+		debug!("Raw block imported: {number:?}  - {hash:?}. Result: {result:?}"); // TODO: debug
+
+		Ok(())
+	}
+
+	fn clear_block_gap(&self) {
+		self.backend.blockchain().clear_block_gap();
+	}
+
+	fn update_block_gap(&self, start: NumberFor<Block>, end: NumberFor<Block>) {
+		self.backend.blockchain().update_block_gap(start, end);
+	}
 }
 
 /// Used in importing a block, where additional changes are made after the runtime
@@ -335,10 +408,17 @@ where
 
 			if let Some(ref notification) = import_notification {
 				if let Err(err) = self.backend.pin_block(notification.hash) {
-					error!(
-						"Unable to pin block for import notification. hash: {}, Error: {}",
-						notification.hash, err
-					);
+					// Fast-sync block import has no state yet.
+					let block_pin_disabled = import_notification
+						.as_ref()
+						.map(|notification| notification.origin == BlockOrigin::FastSync)
+						.unwrap_or_default();
+					if !block_pin_disabled {
+						error!(
+							"Unable to pin block for import notification. hash: {}, number: {}, Error: {}",
+							notification.hash, notification.header.number(), err
+						);
+					}
 				};
 			}
 
@@ -619,7 +699,10 @@ where
 		let make_notifications = match origin {
 			BlockOrigin::NetworkBroadcast | BlockOrigin::Own | BlockOrigin::ConsensusBroadcast =>
 				true,
-			BlockOrigin::Genesis | BlockOrigin::NetworkInitialSync | BlockOrigin::File => false,
+			BlockOrigin::Genesis |
+			BlockOrigin::NetworkInitialSync |
+			BlockOrigin::File |
+			BlockOrigin::FastSync => false,
 		};
 
 		let storage_changes = match storage_changes {
@@ -1747,6 +1830,9 @@ where
 		&mut self,
 		mut import_block: BlockImportParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
+		//		info!("Client import block: {} {:?}",  import_block.header.number(),
+		// import_block.header.hash());
+
 		let span = tracing::span!(tracing::Level::DEBUG, "import_block");
 		let _enter = span.enter();
 
@@ -1758,6 +1844,9 @@ where
 				PrepareStorageChangesResult::Discard(res) => return Ok(res),
 				PrepareStorageChangesResult::Import(storage_changes) => storage_changes,
 			};
+
+		//		info!("Before lock_import_and_run: {} {:?}",  import_block.header.number(),
+		// import_block.header.hash());
 
 		self.lock_import_and_run(|operation| {
 			self.apply_block(operation, import_block, storage_changes)
