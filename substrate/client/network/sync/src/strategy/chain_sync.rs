@@ -76,7 +76,7 @@ mod test;
 const MAX_IMPORTING_BLOCKS: usize = 2048;
 
 /// Maximum blocks to download ahead of any gap.
-const MAX_DOWNLOAD_AHEAD: u32 = 2048;
+const MAX_DOWNLOAD_AHEAD: u32 = 20480;
 
 /// Maximum blocks to look backwards. The gap is the difference between the highest block and the
 /// common block of a node.
