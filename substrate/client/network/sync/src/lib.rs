@@ -34,6 +34,7 @@ pub mod block_relay_protocol;
 pub mod block_request_handler;
 pub mod blocks;
 pub mod engine;
+pub mod fast_sync_engine;
 pub mod mock;
 pub mod service;
 pub mod state_request_handler;
