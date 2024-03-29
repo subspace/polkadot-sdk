@@ -1287,6 +1287,16 @@ where
 		}
 	}
 
+	pub fn update_common_number_for_peers(&mut self, new_common: NumberFor<B>) {
+		for peer in self.peers.values_mut() {
+			if peer.best_number >= new_common {
+				peer.update_common_number(new_common);
+			} else {
+				peer.update_common_number(peer.best_number);
+			}
+		}
+	}
+
 	/// Called when a block has been queued for import.
 	///
 	/// Updates our internal state for best queued block and then goes
