@@ -514,6 +514,9 @@ pub trait Backend<Block: BlockT>:
 
 		return Ok(result);
 	}
+
+    /// Clears the block gap from DB after the fast-sync.
+    fn clear_block_gap(&self) -> Result<()>;
 }
 
 /// Result of  [`Backend::displaced_leaves_after_finalizing`].

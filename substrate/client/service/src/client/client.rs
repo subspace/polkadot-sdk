@@ -119,6 +119,18 @@ where
 	_phantom: PhantomData<RA>,
 }
 
+impl<B, E, Block, RA> crate::ClientExt<Block, B> for Client<B, E, Block, RA>
+where
+	B: backend::Backend<Block>,
+	E: CallExecutor<Block> + Send + Sync,
+	Block: BlockT,
+	RA: Sync + Send,
+{
+	fn clear_block_gap(&self) -> sp_blockchain::Result<()> {
+		self.backend.blockchain().clear_block_gap()
+	}
+}
+
 /// Used in importing a block, where additional changes are made after the runtime
 /// executed.
 enum PrePostHeader<H> {
