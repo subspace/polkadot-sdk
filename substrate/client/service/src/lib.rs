@@ -40,7 +40,9 @@ use codec::{Decode, Encode};
 use futures::{pin_mut, FutureExt, StreamExt};
 use jsonrpsee::RpcModule;
 use log::{debug, error, warn};
-use sc_client_api::{blockchain::HeaderBackend, BlockBackend, BlockchainEvents, ProofProvider};
+use sc_client_api::{
+	backend, blockchain::HeaderBackend, BlockBackend, BlockchainEvents, ProofProvider,
+};
 use sc_network::{
 	config::MultiaddrWithPeerId, service::traits::NetworkService, NetworkBackend, NetworkBlock,
 	NetworkPeers, NetworkStateInfo,
@@ -99,6 +101,12 @@ const DEFAULT_PROTOCOL_ID: &str = "sup";
 /// RPC handlers that can perform RPC queries.
 #[derive(Clone)]
 pub struct RpcHandlers(Arc<RpcModule<()>>);
+
+/// Provides extended functions for `Client` to enable fast-sync.
+pub trait ClientExt<Block: BlockT, B: backend::Backend<Block>> {
+	/// Clear block gap after initial block insertion.
+	fn clear_block_gap(&self) -> sp_blockchain::Result<()>;
+}
 
 impl RpcHandlers {
 	/// Starts an RPC query.
