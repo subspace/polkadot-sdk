@@ -448,7 +448,7 @@ impl<Block: BlockT> blockchain::Backend<Block> for Blockchain<Block> {
 		unimplemented!("Not supported by the in-mem backend.")
 	}
 
-	fn clear_block_gap(&self) {
+	fn clear_block_gap(&self) -> sp_blockchain::Result<()> {
 		unimplemented!("Not supported by the in-mem backend.")
 	}
 }

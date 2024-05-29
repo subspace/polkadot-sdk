@@ -804,9 +804,16 @@ impl<Block: BlockT> sc_client_api::blockchain::Backend<Block> for BlockchainDb<B
 		}
 	}
 
-	fn clear_block_gap(&self) {
+	fn clear_block_gap(&self) -> ClientResult<()> {
 		debug!(target: "sync", "Clear block gap.");
+
+		let mut transaction = Transaction::new();
+		transaction.remove(columns::META, meta_keys::BLOCK_GAP);
+		self.db.commit(transaction)?;
+
 		self.update_block_gap(None);
+
+		Ok(())
 	}
 }
 
