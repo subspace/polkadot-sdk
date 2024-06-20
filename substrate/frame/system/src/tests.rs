@@ -22,7 +22,7 @@ use frame_support::{
 	traits::{OnRuntimeUpgrade, WhitelistedStorageKeys},
 };
 use mock::{RuntimeOrigin, *};
-use sp_core::{hexdisplay::HexDisplay, H256};
+use sp_core::{hexdisplay::HexDisplay, storage::StateVersion, H256};
 use sp_runtime::{
 	traits::{BlakeTwo256, Header},
 	DispatchError, DispatchErrorWithPostInfo,
@@ -789,7 +789,8 @@ fn extrinsics_root_is_calculated_correctly() {
 		System::note_finished_extrinsics();
 		let header = System::finalize();
 
-		let ext_root = extrinsics_data_root::<BlakeTwo256>(vec![vec![1], vec![2]]);
+		let ext_root =
+			extrinsics_data_root::<BlakeTwo256>(vec![vec![1], vec![2]], StateVersion::V0);
 		assert_eq!(ext_root, *header.extrinsics_root());
 	});
 }

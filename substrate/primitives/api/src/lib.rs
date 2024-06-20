@@ -339,6 +339,7 @@ pub use sp_api_proc_macro::decl_runtime_apis;
 ///     apis: RUNTIME_API_VERSIONS,
 ///     transaction_version: 1,
 ///     state_version: 1,
+///     extrinsic_state_version: 0,
 /// };
 ///
 /// # fn main() {}
