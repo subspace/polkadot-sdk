@@ -171,6 +171,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 26,
 	state_version: 1,
+	extrinsic_state_version: 0,
 };
 
 /// The BABE epoch configuration at genesis.

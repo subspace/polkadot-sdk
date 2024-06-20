@@ -508,6 +508,7 @@ mod tests {
 			apis: create_apis_vec!([(<dyn Core::<Block>>::ID, 3)]),
 			transaction_version: 3,
 			state_version: 4,
+			extrinsic_state_version: 0,
 		};
 
 		let version = decode_version(&old_runtime_version.encode()).unwrap();
@@ -520,14 +521,16 @@ mod tests {
 			authoring_version: 1,
 			spec_version: 1,
 			impl_version: 1,
-			apis: create_apis_vec!([(<dyn Core::<Block>>::ID, 4)]),
+			apis: create_apis_vec!([(<dyn Core::<Block>>::ID, 5)]),
 			transaction_version: 3,
 			state_version: 4,
+			extrinsic_state_version: 1,
 		};
 
 		let version = decode_version(&old_runtime_version.encode()).unwrap();
 		assert_eq!(3, version.transaction_version);
 		assert_eq!(4, version.state_version);
+		assert_eq!(1, version.extrinsic_state_version);
 	}
 
 	#[test]
@@ -546,6 +549,7 @@ mod tests {
 			apis: create_apis_vec!([(<dyn Core::<Block>>::ID, 4)]),
 			transaction_version: 100,
 			state_version: 1,
+			extrinsic_state_version: 0,
 		};
 
 		let embedded = sp_version::embed::embed_runtime_version(&wasm, runtime_version.clone())
