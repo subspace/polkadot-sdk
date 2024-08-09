@@ -712,6 +712,7 @@ impl<Block: BlockT> backend::Backend<Block> for Backend<Block> {
 		&self,
 		hash: Block::Hash,
 		justification: Option<Justification>,
+		_ensure_sequesntial_finalization: bool,
 	) -> sp_blockchain::Result<()> {
 		self.blockchain.finalize_header(hash, justification)
 	}

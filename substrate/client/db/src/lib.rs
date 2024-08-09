@@ -1380,10 +1380,13 @@ impl<Block: BlockT> Backend<Block> {
 		justification: Option<Justification>,
 		current_transaction_justifications: &mut HashMap<Block::Hash, Justification>,
 		remove_displaced: bool,
+		ensure_sequential_finalization: bool,
 	) -> ClientResult<MetaUpdate<Block>> {
 		// TODO: ensure best chain contains this block.
 		let number = *header.number();
-		self.ensure_sequential_finalization(header, last_finalized)?;
+		if ensure_sequential_finalization {
+			self.ensure_sequential_finalization(header, last_finalized)?;
+		}
 		let with_state = sc_client_api::Backend::have_state_at(self, hash, number);
 
 		self.note_finalized(
@@ -1481,6 +1484,7 @@ impl<Block: BlockT> Backend<Block> {
 				justification,
 				&mut current_transaction_justifications,
 				finalized_blocks.peek().is_none(),
+				true,
 			)?);
 			last_finalized_hash = block_hash;
 			last_finalized_num = *block_header.number();
@@ -2114,6 +2118,7 @@ impl<Block: BlockT> sc_client_api::backend::Backend<Block> for Backend<Block> {
 		&self,
 		hash: Block::Hash,
 		justification: Option<Justification>,
+		ensure_sequential_finalization: bool,
 	) -> ClientResult<()> {
 		let mut transaction = Transaction::new();
 		let header = self.blockchain.expect_header(hash)?;
@@ -2127,6 +2132,7 @@ impl<Block: BlockT> sc_client_api::backend::Backend<Block> for Backend<Block> {
 			justification,
 			&mut current_transaction_justifications,
 			true,
+			ensure_sequential_finalization,
 		)?;
 
 		self.storage.db.commit(transaction)?;

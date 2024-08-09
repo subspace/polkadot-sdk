@@ -128,6 +128,10 @@ where
 	fn clear_block_gap(&self) -> sp_blockchain::Result<()> {
 		self.backend.blockchain().clear_block_gap()
 	}
+
+	fn finalize_block(&self, hash: Block::Hash) -> sp_blockchain::Result<()> {
+		self.backend.finalize_block(hash, None, false)
+	}
 }
 
 /// Used in importing a block, where additional changes are made after the runtime

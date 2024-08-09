@@ -106,6 +106,9 @@ pub struct RpcHandlers(Arc<RpcModule<()>>);
 pub trait ClientExt<Block: BlockT, B: backend::Backend<Block>> {
 	/// Clear block gap after initial block insertion.
 	fn clear_block_gap(&self) -> sp_blockchain::Result<()>;
+
+	/// Finalize block disabling sequential order check.
+	fn finalize_block(&self, hash: Block::Hash) -> sp_blockchain::Result<()>;
 }
 
 impl RpcHandlers {

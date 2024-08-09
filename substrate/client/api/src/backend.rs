@@ -551,6 +551,7 @@ pub trait Backend<Block: BlockT>: AuxStore + Send + Sync {
 		&self,
 		hash: Block::Hash,
 		justification: Option<Justification>,
+		ensure_sequential_finalization: bool,
 	) -> sp_blockchain::Result<()>;
 
 	/// Append justification to the block with the given `hash`.

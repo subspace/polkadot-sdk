@@ -17,7 +17,7 @@
 
 //! Substrate blockchain trait
 
-use log::warn;
+use log::{debug, warn};
 use parking_lot::RwLock;
 use sp_runtime::{
 	generic::BlockId,
@@ -289,9 +289,14 @@ pub trait Backend<Block: BlockT>:
 					match finalized_chain.iter().rev().nth(distance_from_finalized as usize) {
 						Some(header) => (header.number, header.hash),
 						None => {
-							let header = self.header_metadata(
-								finalized_chain.front().expect("Not empty; qed").parent,
-							)?;
+							let parent = finalized_chain.front().expect("Not empty; qed").parent;
+							let header = match self.header_metadata(parent) {
+								Ok(header) => header,
+								Err(_) => {
+									debug!("Can't find obtain header metatadata: {parent:?}");
+									break;
+								},
+							};
 							let result = (header.number, header.hash);
 							finalized_chain.push_front(header);
 							result
