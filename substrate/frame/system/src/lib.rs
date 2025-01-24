@@ -135,7 +135,7 @@ use frame_support::{
 	ensure, impl_ensure_origin_with_arg_ignoring_arg,
 	migrations::MultiStepMigrator,
 	pallet_prelude::Pays,
-	storage::{self, StorageStreamIter},
+	storage,
 	traits::{
 		ConstU32, Contains, EnsureOrigin, EnsureOriginWithArg, Get, HandleLifetime,
 		OnKilledAccount, OnNewAccount, OnRuntimeUpgrade, OriginTrait, PalletInfo, SortedMembers,
@@ -955,23 +955,16 @@ pub mod pallet {
 
 	/// Events deposited for the current block.
 	///
-	/// NOTE: The item is unbound and should therefore never be read on chain.
+	/// NOTE: The map is unbound and should therefore never be iterated on chain.
 	/// It could otherwise inflate the PoV size of a block.
 	///
 	/// Events have a large in-memory size. Box the events to not go out-of-memory
 	/// just in case someone still reads them from within the runtime.
 	#[pallet::storage]
-	#[pallet::whitelist_storage]
 	#[pallet::disable_try_decode_storage]
 	#[pallet::unbounded]
 	pub(super) type Events<T: Config> =
-		StorageValue<_, Vec<Box<EventRecord<T::RuntimeEvent, T::Hash>>>, ValueQuery>;
-
-	/// The number of events in the `Events<T>` list.
-	#[pallet::storage]
-	#[pallet::whitelist_storage]
-	#[pallet::getter(fn event_count)]
-	pub(super) type EventCount<T: Config> = StorageValue<_, EventIndex, ValueQuery>;
+		CountedStorageMap<_, Identity, u32, Box<EventRecord<T::RuntimeEvent, T::Hash>>, OptionQuery>;
 
 	/// Mapping between a topic (represented by T::Hash) and a vector of indexes
 	/// of events in the `<Events<T>>` list.
@@ -1718,21 +1711,9 @@ impl<T: Config> Pallet<T> {
 
 		let phase = ExecutionPhase::<T>::get().unwrap_or_default();
 		let event = EventRecord { phase, event, topics: topics.to_vec() };
+		let event_idx = Events::<T>::count();
 
-		// Index of the event to be added.
-		let event_idx = {
-			let old_event_count = EventCount::<T>::get();
-			let new_event_count = match old_event_count.checked_add(1) {
-				// We've reached the maximum number of events at this block, just
-				// don't do anything and leave the event_count unaltered.
-				None => return,
-				Some(nc) => nc,
-			};
-			EventCount::<T>::put(new_event_count);
-			old_event_count
-		};
-
-		Events::<T>::append(event);
+		Events::<T>::insert(event_idx, event);
 
 		for topic in topics {
 			<EventTopics<T>>::append(topic, &(block_number, event_idx));
@@ -1837,7 +1818,6 @@ impl<T: Config> Pallet<T> {
 		// The following fields
 		//
 		// - <Events<T>>
-		// - <EventCount<T>>
 		// - <EventTopics<T>>
 		// - <Number<T>>
 		// - <ParentHash<T>>
@@ -1916,7 +1896,8 @@ impl<T: Config> Pallet<T> {
 	/// execution else it can have a large impact on the PoV size of a block.
 	pub fn read_events_no_consensus(
 	) -> impl Iterator<Item = Box<EventRecord<T::RuntimeEvent, T::Hash>>> {
-		Events::<T>::stream_iter()
+		let event_count = Events::<T>::count();
+		(0..event_count).filter_map(|i| Events::<T>::get(i))
 	}
 
 	/// Read and return the events of a specific pallet, as denoted by `E`.
@@ -1927,8 +1908,9 @@ impl<T: Config> Pallet<T> {
 	where
 		T::RuntimeEvent: TryInto<E>,
 	{
-		Events::<T>::get()
-			.into_iter()
+		let event_count = Events::<T>::count();
+		(0..event_count)
+			.filter_map(|i| Events::<T>::get(i))
 			.map(|er| er.event)
 			.filter_map(|e| e.try_into().ok())
 			.collect::<_>()
@@ -1968,8 +1950,7 @@ impl<T: Config> Pallet<T> {
 	/// This needs to be used in prior calling [`initialize`](Self::initialize) for each new block
 	/// to clear events from previous block.
 	pub fn reset_events() {
-		<Events<T>>::kill();
-		EventCount::<T>::kill();
+		let _ = <Events<T>>::clear(u32::max_value(), None);
 		let _ = <EventTopics<T>>::clear(u32::max_value(), None);
 	}
 
@@ -1978,10 +1959,9 @@ impl<T: Config> Pallet<T> {
 	/// NOTE: Events not registered at the genesis block and quietly omitted.
 	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
 	pub fn assert_has_event(event: T::RuntimeEvent) {
-		let events = Self::events();
 		assert!(
-			events.iter().any(|record| record.event == event),
-			"expected event {event:?} not found in events {events:?}",
+			Events::<T>::iter_values().any(|record| record.event == event),
+			"expected event {event:?} not found",
 		);
 	}
 
@@ -1990,7 +1970,8 @@ impl<T: Config> Pallet<T> {
 	/// NOTE: Events not registered at the genesis block and quietly omitted.
 	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
 	pub fn assert_last_event(event: T::RuntimeEvent) {
-		let last_event = Self::events().last().expect("events expected").event.clone();
+		let last_event_index = Events::<T>::count().checked_sub(1).expect("events expected");
+		let last_event = Events::<T>::get(last_event_index).expect("event exists").event.clone();
 		assert_eq!(
 			last_event, event,
 			"expected event {event:?} is not equal to the last event {last_event:?}",
